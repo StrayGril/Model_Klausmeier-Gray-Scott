@@ -2,6 +2,28 @@ import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 
 # ============================================================
+# KONWERSJA MODELU PEŁNOWYMIAROWEGO
+# ============================================================
+def dimensional_to_dimensionless(A, L, R, DW, J, M, DN, LX):
+    # sprawdzanie nieujemności
+    if any(x <= 0 for x in (A, L, R, DW, J, M, DN, LX)):
+        raise ValueError("Parametry muszą być dodatnie")
+
+    # skale
+    N0 = np.sqrt(L / R)
+    W0 = np.sqrt(L / (J**2 * R))
+    T0 = 1 / R
+    X0 = LX # skalujemy przez rozmiar wymiaru
+
+    # parametry bezwymiarowe
+    a = A / (L * W0)
+    m = M / L
+    d1 = DW / (L * X0**2)
+    d2 = DN / (L * X0**2)
+
+    return a, m, d1, d2
+
+# ============================================================
 # STANY STACJONARNE I CZĘŚĆ REAKCYJNA MODELU
 # ============================================================
 

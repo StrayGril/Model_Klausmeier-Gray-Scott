@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from pipeline.model_core import (
     v_stac,
     u_stac,
@@ -131,7 +132,8 @@ def run_bifurcation(
     krok_max: int = 500,
     eps: float = 1e-8,
     ha: float = 5e-4,
-    amax_factor: float = 4.0,
+    amax_factor: float = 4,
+    a_max: float | None = None,
 ):
     """
     Wykonuje pełną analizę bifurkacyjną względem parametru a.
@@ -165,6 +167,8 @@ def run_bifurcation(
     amax_factor : float
         Współczynnik wyznaczający maksymalną wartość parametru:
             a_max = amax_factor * m.
+    a_max : float | None = None,
+        Jeżeli none, stosujemy amax_factor. W przeciwnym przypadku, dobieramy je jawnie
 
     Zwraca
         - serie parametrów (a_down, a_up),
@@ -174,7 +178,12 @@ def run_bifurcation(
         - wartość referencyjną a = 2m,
         - informacje o siatce i parametrach numerycznych.
     """
-    amax = amax_factor * m
+    if a_max is None:
+        amax = amax_factor * m
+    else:
+        if a_max <= 0:
+            raise ValueError("a_max musi być dodatnie")
+        amax = a_max
 
     # siatka i brzeg
     _, _, X, Y, h = make_grid(Lx, Ly, Nx, Ny)
@@ -268,7 +277,6 @@ def plot_bifurcation(result: dict, title: str | None = None, show: bool = True, 
     ax : matplotlib.axes.Axes | None
         Oś, na której ma zostać narysowany wykres.
     """
-    import matplotlib.pyplot as plt
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -299,6 +307,60 @@ def plot_bifurcation(result: dict, title: str | None = None, show: bool = True, 
     fig.tight_layout()
 
     if show:
+        plt.show()
+
+    return ax
+
+# --------------------------------------------------
+# Bifurkacja dla symulacji z malejącym a
+# --------------------------------------------------
+def plot_bifurcation_down(result: dict, title: str | None = None, show: bool = True, ax=None):
+    """
+    Rysuje diagram bifurkacyjny tylko dla przejścia z dużego a w dół.
+
+    Parametry
+    result : dict
+        parametry zwrócone przez funkcję run_bifurcation.
+    title : str | None
+        Tytuł wykresu.
+    show : bool
+        Czy wywołać plt.show().
+    ax : matplotlib.axes.Axes | None
+        Oś, na której ma zostać narysowany wykres.
+    """
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8,5))
+    else:
+        fig = ax.figure
+
+    a_down = result["a_down"]
+    avg = result["down_avg"]
+    maxv = result["down_max"]
+    params = result["params"]
+
+    ax.scatter(a_down, avg, s=8, color="black", label=r"$v_{avg}$")
+    ax.scatter(a_down, maxv, s=8, color="green", label=r"$v_{max}$")
+
+    # linie referencyjne
+    ax.axvline(result["a_2m"], linestyle=":", color="black", label="a = 2m")
+
+    if result.get("tp") is not None:
+        ax.axvline(result["tp"], linestyle=":", color="purple",
+                   label=rf"$tp \approx {result['tp']:.4f}$")
+
+    ax.set_xlabel("a")
+    ax.set_ylabel("Biomasa w stanie stacjonarnym")
+
+    if title is None:
+        title = rf"$d_1={params['d1']:.6f},\ d_2={params['d2']:.6f}$"
+
+    ax.set_title(title)
+    ax.grid(True)
+    ax.legend()
+    fig.tight_layout()
+
+    if show and ax is None:
         plt.show()
 
     return ax
