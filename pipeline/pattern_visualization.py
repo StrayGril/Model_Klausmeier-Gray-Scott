@@ -77,46 +77,41 @@ def simulate_patterns(a, m, d1, d2, Lx, Ly, Nx, Ny, T, wykres):
 
     if "v" in wykres:
 
-        fig, axs = plt.subplots(2,2, figsize=(10,8))
+        fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
-        levelsv = np.linspace(min(v_0.min(), v_t1.min(), v_tmid.min(), v_curr.min()),
-                              max(v_0.max(), v_t1.max(), v_tmid.max(), v_curr.max()), 50)
+        dane = [v_0, v_t1, v_tmid, v_curr]
+        tytuly = ["v(t=0)", "v(t=1)", "v(t=T/2)", "v(t=T)"]
 
-        axs[0,0].contourf(X, Y, v_0.reshape(Ny, Nx), levels=levelsv, cmap='viridis')
-        axs[0,0].set_title("v(t=0)")
+        levelsv = np.linspace(
+            min(d.min() for d in dane),
+            max(d.max() for d in dane),
+            50
+        )
 
-        axs[0,1].contourf(X, Y, v_t1.reshape(Ny, Nx), levels=levelsv, cmap='viridis')
-        axs[0,1].set_title("v(t=1)")
-
-        axs[1,0].contourf(X, Y, v_tmid.reshape(Ny, Nx), levels=levelsv, cmap='viridis')
-        axs[1,0].set_title("v(t=T/2)")
-
-        im = axs[1,1].contourf(X, Y, v_curr.reshape(Ny, Nx), levels=levelsv, cmap='viridis')
-        axs[1,1].set_title("v(t=T)")
+        for ax, d, t in zip(axs.flat, dane, tytuly):
+            im = ax.contourf(X, Y, d.reshape(Ny, Nx), levels=levelsv, cmap="viridis")
+            ax.set_title(t)
 
         fig.colorbar(im, ax=axs)
         #plt.tight_layout()
         plt.show()
 
-
     if "u" in wykres:
 
-        fig, axs = plt.subplots(2,2, figsize=(10,8))
+        fig, axs = plt.subplots(2, 2, figsize=(10, 8))
 
-        levelsu = np.linspace(min(u_0.min(), u_t1.min(), u_tmid.min(), u_curr.min()),
-                              max(u_0.max(), u_t1.max(), u_tmid.max(), u_curr.max()), 50)
+        dane = [u_0, u_t1, u_tmid, u_curr]
+        tytuly = ["u(t=0)", "u(t=1)", "u(t=T/2)", "u(t=T)"]
 
-        axs[0,0].contourf(X, Y, u_0.reshape(Ny, Nx), levels=levelsu, cmap='viridis')
-        axs[0,0].set_title("u(t=0)")
+        levelsu = np.linspace(
+            min(d.min() for d in dane),
+            max(d.max() for d in dane),
+            50
+        )
 
-        axs[0,1].contourf(X, Y, u_t1.reshape(Ny, Nx), levels=levelsu, cmap='viridis')
-        axs[0,1].set_title("u(t=1)")
-
-        axs[1,0].contourf(X, Y, u_tmid.reshape(Ny, Nx), levels=levelsu, cmap='viridis')
-        axs[1,0].set_title("u(t=T/2)")
-
-        im = axs[1,1].contourf(X, Y, u_curr.reshape(Ny, Nx), levels=levelsu, cmap='viridis')
-        axs[1,1].set_title("u(t=T)")
+        for ax, d, t in zip(axs.flat, dane, tytuly):
+            im = ax.contourf(X, Y, d.reshape(Ny, Nx), levels=levelsu, cmap="viridis")
+            ax.set_title(t)
 
         fig.colorbar(im, ax=axs)
         #plt.tight_layout()
