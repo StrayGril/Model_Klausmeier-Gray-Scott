@@ -7,6 +7,10 @@ from pipeline.model_core import (
     precompute_diffusion,
     step_reaction_diffusion
 )
+from matplotlib.colors import LinearSegmentedColormap
+cmap_u = LinearSegmentedColormap.from_list("yellow_to_darkblue", ["#fde456", "#08306b"])
+cmap_v = LinearSegmentedColormap.from_list("yellow_to_darkgreen", ["#fde456", "#00441b"])
+
 
 # --------------------------------------------------
 # Warunki początkowe
@@ -134,7 +138,7 @@ def plot_patterns(sim_data, wykres="uv"):
         levels = np.linspace(min(d.min() for d in dane), max(d.max() for d in dane), 50)
 
         for ax, (t, (u, _)) in zip(axs.flat, states.items()):
-            im = ax.contourf(X, Y, u.reshape(Ny, Nx), levels=levels, cmap="Spectral")
+            im = ax.contourf(X, Y, u.reshape(Ny, Nx), levels=levels, cmap=cmap_u)
             ax.set_title(f"Woda u(t={t})")
 
         fig.colorbar(im, ax=axs)
@@ -146,14 +150,14 @@ def plot_patterns(sim_data, wykres="uv"):
         levels = np.linspace(min(d.min() for d in dane), max(d.max() for d in dane), 50)
 
         for ax, (t, (_, v)) in zip(axs.flat, states.items()):
-            im = ax.contourf(X, Y, v.reshape(Ny, Nx), levels=levels, cmap="RdYlGn")
+            im = ax.contourf(X, Y, v.reshape(Ny, Nx), levels=levels, cmap=cmap_v)
             ax.set_title(f"Biomasa v(t={t})")
 
         fig.colorbar(im, ax=axs)
         plt.show()
 
 # --------------------------------------------------
-# Wykresy z symulacji
+# Wykresy ???
 # --------------------------------------------------
 def plot_matrix(M, plot_title="Wykres", show=True):
     """

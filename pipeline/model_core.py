@@ -5,17 +5,69 @@ from scipy.linalg import lu_factor, lu_solve
 # KONWERSJA MODELU PEŁNOWYMIAROWEGO
 # ============================================================
 def dimensional_to_dimensionless(A, L, R, DW, J, M, DN, LX):
-    # sprawdzanie nieujemności
+    """
+    Zamienia parametry pełnowymiarowe modelu na parametry bezwymiarowe.
+
+    Parametry
+    ---------
+    A : float
+        Dopływ wody.
+    L : float
+        Współczynnik strat / śmiertelności wody.
+    R : float
+        Współczynnik wzrostu biomasy.
+    DW : float
+        Współczynnik dyfuzji wody.
+    J : float
+        Współczynnik poboru wody przez biomasę.
+    M : float
+        Współczynnik śmiertelności biomasy.
+    DN : float
+        Współczynnik dyfuzji biomasy.
+    LX : float
+        Długość boku domeny przestrzennej.
+
+    Zwraca
+    -------
+    tuple[float, float, float, float]
+        Parametry bezwymiarowe:
+        - a  : bezwymiarowy dopływ,
+        - m  : bezwymiarowa śmiertelność biomasy,
+        - d1 : bezwymiarowa dyfuzja wody,
+        - d2 : bezwymiarowa dyfuzja biomasy.
+
+    Wyjątki
+    --------
+    ValueError
+        Gdy któryś parametr jest niedodatni albo gdy wyrażenie pod
+        pierwiastkiem w warunku istnienia dodatniego stanu stacjonarnego
+        jest ujemne.
+
+    Uwagi
+    -----
+    Funkcja używa skal:
+    N0 = sqrt(L / R),
+    W0 = sqrt(L / (J^2 * R)),
+    T0 = 1 / R,
+    X0 = LX.
+
+    Następnie wyznacza parametry bezwymiarowe:
+    a = A / (L * W0),
+    m = M / L,
+    d1 = DW / (L * X0^2),
+    d2 = DN / (L * X0^2).
+    """
     if any(x <= 0 for x in (A, L, R, DW, J, M, DN, LX)):
         raise ValueError("Parametry muszą być dodatnie")
 
-    # skale
+    if A**2 - ((4 * L * M**2) / (J**2 * R)) < 0:
+        raise ValueError("Delta stanu podwójnego stanu stacjonarnego ujemna")
+
     N0 = np.sqrt(L / R)
     W0 = np.sqrt(L / (J**2 * R))
     T0 = 1 / R
-    X0 = LX # skalujemy przez rozmiar wymiaru
+    X0 = LX
 
-    # parametry bezwymiarowe
     a = A / (L * W0)
     m = M / L
     d1 = DW / (L * X0**2)
