@@ -134,6 +134,7 @@ def run_bifurcation(
     ha: float = 5e-4,
     amax_factor: float = 4,
     a_max: float | None = None,
+    store_down_states: bool = True,
 ):
     """
     Wykonuje pełną analizę bifurkacyjną względem parametru a.
@@ -175,6 +176,7 @@ def run_bifurcation(
         - odpowiadające średnie i maksima biomasy,
         - przybliżony punkt krytyczny tp,
         - indeks skoku tp_idx,
+        - indeksy lokalnych maksimów peak_idx dla serii down_max,
         - wartość referencyjną a = 2m,
         - informacje o siatce i parametrach numerycznych.
     """
@@ -198,8 +200,8 @@ def run_bifurcation(
     # start na równowadze ODE dla amax
     v0 = v_stac(a_down[0], m)
     u0 = u_stac(v0, m)
-    u_init = u0 * np.ones(Nx * Ny)
-    v_init = v0 * np.ones(Nx * Ny)
+    u_init = np.full(Nx * Ny, u0)
+    v_init = np.full(Nx * Ny, v0)
     u_init[brzeg] = 0
     v_init[brzeg] = 0
 
@@ -214,12 +216,12 @@ def run_bifurcation(
         brzeg=brzeg,
         krok_max=krok_max,
         eps=eps,
-        store_states=True,
+        store_states=store_down_states,
     )
 
     tp, idx = estimate_tipping_point(a_down, down["max"])
 
-    # stan startowy "tuż nad" tp (tak jak u Ciebie)
+    # stan startowy "tuż nad" tp
     idx_c = np.where(a_down > tp)[0][-1]
     u_start, v_start = down["states"][idx_c]
 
@@ -236,7 +238,7 @@ def run_bifurcation(
         brzeg=brzeg,
         krok_max=krok_max,
         eps=eps,
-        store_states=False,
+        store_states=store_down_states,
     )
 
     return {
@@ -311,10 +313,147 @@ def plot_bifurcation(result: dict, title: str | None = None, show: bool = True, 
 
     return ax
 
+# ---------------------------------------
+# Symulacja bifurkacyjna z malejącym a
+# ---------------------------------------
+def run_bifurcation_down(
+    m: float,
+    d1: float,
+    d2: float,
+    Lx: float = 10,
+    Ly: float = 10,
+    Nx: int = 30,
+    Ny: int = 30,
+    ht: float = 0.025,
+    krok_max: int = 200,
+    eps: float = 1e-5,
+    ha: float = 5e-4,
+    amax_factor: float = 4,
+    a_max: float | None = None,
+    store_down_states: bool = False,
+):
+    """
+    Wykonuje analizę bifurkacyjną względem parametru a
+    wyłącznie dla malejących wartości a.
+
+    Algorytm:
+        1. Generacja siatki przestrzennej oraz maski Dirichleta.
+        2. Faktoryzacja macierzy dyfuzji (schemat niejawny).
+        3. Kontynuacja dla malejących wartości a.
+        4. Identyfikacja punktu krytycznego (tipping point)
+           na podstawie największego skoku max(v).
+        5. Wyznaczenie lokalnych maksimów serii down_max.
+
+    Parametry
+    m : float
+        Parametr śmiertelności biomasy.
+    d1, d2 : float
+        Współczynniki dyfuzji.
+    Lx, Ly : float
+        Wymiary domeny przestrzennej.
+    Nx, Ny : int
+        Liczba wartości dla x i y.
+    ht : float
+        Krok czasowy.
+    krok_max : int
+        Maksymalna liczba iteracji w solverze stanu stacjonarnego.
+    eps : float
+        Tolerancja zbieżności.
+    ha : float
+        Krok parametru a w procedurze kontynuacji.
+    amax_factor : float
+        Współczynnik wyznaczający maksymalną wartość parametru:
+            a_max = amax_factor * m.
+    a_max : float | None = None,
+        Jeżeli none, stosujemy amax_factor. W przeciwnym przypadku, dobieramy je jawnie
+    store_down_states : bool
+        Czy zapisywać pełne stany dla gałęzi malejącej.
+
+    Zwraca
+        - serie parametrów a_down,
+        - odpowiadające średnie i maksima biomasy,
+        - przybliżony punkt krytyczny tp,
+        - indeks skoku tp_idx,
+        - indeksy lokalnych maksimów peak_idx dla serii down_max,
+        - wartość referencyjną a = 2m,
+        - informacje o siatce i parametrach numerycznych.
+    """
+    if a_max is None:
+        amax = amax_factor * m
+    else:
+        if a_max <= 0:
+            raise ValueError("a_max musi być dodatnie")
+        amax = a_max
+
+    # siatka i brzeg
+    _, _, X, Y, h = make_grid(Lx, Ly, Nx, Ny)
+    brzeg = dirichlet_boundary_mask(X, Y, Lx, Ly)
+
+    # LU dla dyfuzji
+    lu_Au, lu_Av = precompute_diffusion(Nx, Ny, h, ht, d1, d2)
+
+    # a malejące
+    a_down = np.arange(amax, 0, -ha)
+
+    # start na równowadze ODE dla amax
+    v0 = v_stac(a_down[0], m)
+    u0 = u_stac(v0, m)
+    u_init = np.full(Nx * Ny, u0)
+    v_init = np.full(Nx * Ny, v0)
+    u_init[brzeg] = 0
+    v_init[brzeg] = 0
+
+    down = continuation_sweep(
+        a_values=a_down,
+        u_init=u_init,
+        v_init=v_init,
+        m=m,
+        ht=ht,
+        lu_Au=lu_Au,
+        lu_Av=lu_Av,
+        brzeg=brzeg,
+        krok_max=krok_max,
+        eps=eps,
+        store_states=store_down_states,
+    )
+
+    tp, idx = estimate_tipping_point(a_down, down["max"])
+
+    max_series = down["max"]
+    peak_idx = np.where(
+        (max_series[1:-1] > max_series[:-2]) &
+        (max_series[1:-1] > max_series[2:])
+    )[0] + 1
+
+    peak_mask = np.zeros(len(max_series), dtype=bool)
+    peak_mask[peak_idx] = True
+
+    return {
+        "a_down": a_down,
+        "down_avg": down["avg"],
+        "down_max": down["max"],
+        "tp": tp,
+        "tp_idx": idx,
+        "peak_idx": peak_idx,
+        "peak_mask": peak_mask,
+        "down_states": down["states"] if store_down_states else None,
+        "a_2m": 2.0 * m,
+        "brzeg": brzeg,
+        "grid": {"Lx": Lx, "Ly": Ly, "Nx": Nx, "Ny": Ny, "h": h},
+        "params": {"m": m, "d1": d1, "d2": d2, "ht": ht, "krok_max": krok_max, "eps": eps, "ha": ha},
+    }
+
+
 # --------------------------------------------------
 # Bifurkacja dla symulacji z malejącym a
 # --------------------------------------------------
-def plot_bifurcation_down(result: dict, title: str | None = None, show: bool = True, ax=None):
+def plot_bifurcation_down(
+    result: dict,
+    title: str | None = None,
+    show: bool = True,
+    ax=None,
+    show_peaks: bool = True,
+):
     """
     Rysuje diagram bifurkacyjny tylko dla przejścia z dużego a w dół.
 
@@ -328,7 +467,7 @@ def plot_bifurcation_down(result: dict, title: str | None = None, show: bool = T
     ax : matplotlib.axes.Axes | None
         Oś, na której ma zostać narysowany wykres.
     """
-
+    created_ax = ax is None
     if ax is None:
         fig, ax = plt.subplots(figsize=(8,5))
     else:
@@ -341,6 +480,18 @@ def plot_bifurcation_down(result: dict, title: str | None = None, show: bool = T
 
     ax.scatter(a_down, avg, s=8, color="black", label=r"$v_{avg}$")
     ax.scatter(a_down, maxv, s=8, color="green", label=r"$v_{max}$")
+
+    # peaki (potencjalnie ciekawe punkty)
+    if show_peaks and "peak_mask" in result:
+        mask = result["peak_mask"]
+        ax.scatter(
+            a_down[mask],
+            maxv[mask],
+            s=20,
+            color="red",
+            zorder=3,
+            label="peaki"
+        )
 
     # linie referencyjne
     ax.axvline(result["a_2m"], linestyle=":", color="black", label="a = 2m")
@@ -360,7 +511,7 @@ def plot_bifurcation_down(result: dict, title: str | None = None, show: bool = T
     ax.legend()
     fig.tight_layout()
 
-    if show and ax is None:
+    if show and created_ax:
         plt.show()
-
     return ax
+

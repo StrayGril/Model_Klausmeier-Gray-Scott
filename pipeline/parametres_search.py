@@ -1,0 +1,158 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from pipeline.turing_instability import turing_analysis
+from pipeline.model_core import homogeneous_state
+
+# --------------------------------------------------
+# Analiza Turinga
+# --------------------------------------------------
+def scan_turing_am(
+    d1,
+    d2,
+    m_values,
+    a_values,
+    k_min=0,
+    k_max=20,
+    n_k=4000,
+):
+    """
+    Skanuje płaszczyznę (a, m) dla ustalonych dyfuzji d1, d2.
+
+    Zwraca listę słowników z informacją o:
+    - istnieniu stanu jednorodnego,
+    - max Re(lambda),
+    - pasmie Turinga.
+    """
+    results = []
+
+    for m in m_values:
+        for a in a_values:
+            try:
+                u_star, v_star = homogeneous_state(a, m)
+            except:
+                u_star, v_star = np.nan, np.nan
+
+                # pomijamy przypadki bez sensownego dodatniego stanu
+                if not np.isfinite(u_star) or not np.isfinite(v_star) or v_star <= 1:
+                    results.append({
+                        "a": a,
+                        "m": m,
+                        "u_star": np.nan,
+                        "v_star": np.nan,
+                        "has_state": 0,
+                        "has_turing": 0,
+                        "lambda_max": np.nan,
+                        "k_left": np.nan,
+                        "k_right": np.nan
+                    })
+                    continue
+
+            try:
+                res = turing_analysis(a, m, d1, d2, k_min=k_min, k_max=k_max, n_k=n_k)
+            except ValueError:
+                results.append({
+                    "a": a,
+                    "m": m,
+                    "u_star": u_star,
+                    "v_star": v_star,
+                    "has_state": 1,
+                    "has_turing": 0,
+                    "lambda_max": np.nan,
+                    "k_left": np.nan,
+                    "k_right": np.nan,
+                    "k_dom": np.nan
+                })
+                continue
+
+            lam = res.get("lambda", None)
+            band = res.get("band", None)
+
+            lambda_max = np.nan
+            if lam is not None:
+                lambda_max = np.max(np.real(lam))
+
+            k_left = np.nan
+            k_right = np.nan
+            k_dom = np.nan
+            has_turing = 0
+
+            if band is not None:
+                k_left = band.get("k_min", np.nan)
+                k_right = band.get("k_max", np.nan)
+                k_dom = band.get("k_dom", np.nan)
+
+                if np.isfinite(k_left) and np.isfinite(k_right) and (k_right > k_left):
+                    has_turing = 1
+
+            results.append({
+                "a": a,
+                "m": m,
+                "u_star": u_star,
+                "v_star": v_star,
+                "has_state": 1,
+                "has_turing": has_turing,
+                "lambda_max": lambda_max,
+                "k_left": k_left,
+                "k_right": k_right,
+                "k_dom": k_dom
+            })
+
+    return results
+
+def unpack_scan_results(results):
+    """
+    Zamienia listę słowników na tablice numpy. (uwaga A != wymiarowe A)
+    """
+    A = np.array([r["a"] for r in results])
+    M = np.array([r["m"] for r in results])
+    S = np.array([r["has_state"] for r in results])
+    T = np.array([r["has_turing"] for r in results])
+    L = np.array([r["lambda_max"] for r in results])
+    V = np.array([r["v_star"] for r in results])
+    K1 = np.array([r["k_left"] for r in results])
+    K2 = np.array([r["k_right"] for r in results])
+    KD = np.array([r["k_dom"] for r in results])
+
+    return A, M, S, T, L, V, K1, K2, KD
+
+def plot_lambda_map(results, figsize=(8, 5)):
+    """
+    Rysuje mapę max Re(lambda) w płaszczyźnie (a, m).
+    """
+    A, M, S, T, L, V, K1, K2, KD = unpack_scan_results(results)
+
+    mask = np.isfinite(L)
+
+    plt.figure(figsize=figsize)
+    sc = plt.scatter(A[mask], M[mask], c=L[mask], s=18)
+    plt.colorbar(sc, label=r"maxRe($\lambda$)")
+    plt.xlabel("a")
+    plt.ylabel("m")
+    plt.title(r"Mapa wartości maxRe($\lambda$)")
+    plt.grid(True, alpha=0.3)
+    plt.show()
+
+def plot_turing_regions(results, figsize=(8, 5)):
+    """
+    Rysuje mapę klas:
+    - brak stanu,
+    - stan stabilny,
+    - obszar Turinga.
+    """
+    A, M, S, T, L, V, K1, K2, KD = unpack_scan_results(results)
+
+    mask_no_state = (S == 0)
+    mask_state_no_turing = (S == 1) & (T == 0)
+    mask_turing = (T == 1)
+
+    plt.figure(figsize=figsize)
+    plt.scatter(A[mask_no_state], M[mask_no_state], s=8, alpha=0.35, label="brak stanu")
+    plt.scatter(A[mask_state_no_turing], M[mask_state_no_turing], s=8, alpha=0.50, label="stan stabilny")
+    plt.scatter(A[mask_turing], M[mask_turing], s=12, alpha=0.9, label="obszar Turinga")
+
+    plt.xlabel("a")
+    plt.ylabel("m")
+    plt.title("Mapa stanów w płaszczyźnie (a, m)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.show()
