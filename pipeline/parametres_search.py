@@ -115,7 +115,7 @@ def unpack_scan_results(results):
 
     return A, M, S, T, L, V, K1, K2, KD
 
-def plot_lambda_map(results, figsize=(8, 5)):
+def plot_lambda_map(results, ax=None):
     """
     Rysuje mapę max Re(lambda) w płaszczyźnie (a, m).
     """
@@ -123,16 +123,17 @@ def plot_lambda_map(results, figsize=(8, 5)):
 
     mask = np.isfinite(L)
 
-    plt.figure(figsize=figsize)
-    sc = plt.scatter(A[mask], M[mask], c=L[mask], s=18)
-    plt.colorbar(sc, label=r"maxRe($\lambda$)")
-    plt.xlabel("a")
-    plt.ylabel("m")
-    plt.title(r"Mapa wartości maxRe($\lambda$)")
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 5))
 
-def plot_turing_regions(results, figsize=(8, 5)):
+    sc = ax.scatter(A[mask], M[mask], c=L[mask], s=18)
+    plt.colorbar(sc, ax=ax, label=r"maxRe($\lambda$)")
+    ax.set_xlabel("a")
+    ax.set_ylabel("m")
+    ax.set_title(r"Mapa wartości maxRe($\lambda$)")
+    ax.grid(True, alpha=0.3)
+
+def plot_turing_regions(results, ax = None):
     """
     Rysuje mapę klas:
     - brak stanu,
@@ -145,14 +146,15 @@ def plot_turing_regions(results, figsize=(8, 5)):
     mask_state_no_turing = (S == 1) & (T == 0)
     mask_turing = (T == 1)
 
-    plt.figure(figsize=figsize)
-    plt.scatter(A[mask_no_state], M[mask_no_state], s=8, alpha=0.35, label="brak stanu")
-    plt.scatter(A[mask_state_no_turing], M[mask_state_no_turing], s=8, alpha=0.50, label="stan stabilny")
-    plt.scatter(A[mask_turing], M[mask_turing], s=12, alpha=0.9, label="obszar Turinga")
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 5))
 
-    plt.xlabel("a")
-    plt.ylabel("m")
-    plt.title("Mapa stanów w płaszczyźnie (a, m)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    ax.scatter(A[mask_no_state], M[mask_no_state], s=8, alpha=0.35, label="brak stanu")
+    ax.scatter(A[mask_state_no_turing], M[mask_state_no_turing], s=8, alpha=0.50, label="stan stabilny")
+    ax.scatter(A[mask_turing], M[mask_turing], s=12, alpha=0.9, label="obszar Turinga")
+
+    ax.set_xlabel("a")
+    ax.set_ylabel("m")
+    ax.set_title("Mapa stanów w płaszczyźnie (a, m)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
