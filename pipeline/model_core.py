@@ -1,21 +1,75 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
+from scipy.sparse import diags, eye, kron, csr_matrix
+from scipy.sparse.linalg import splu
 
 # ============================================================
 # KONWERSJA MODELU PEŁNOWYMIAROWEGO
 # ============================================================
 def dimensional_to_dimensionless(A, L, R, DW, J, M, DN, LX):
-    # sprawdzanie nieujemności
+    """
+    Zamienia parametry pełnowymiarowe modelu na parametry bezwymiarowe.
+
+    Parametry
+    ---------
+    A : float
+        Dopływ wody.
+    L : float
+        Współczynnik strat / śmiertelności wody.
+    R : float
+        Współczynnik wzrostu biomasy.
+    DW : float
+        Współczynnik dyfuzji wody.
+    J : float
+        Współczynnik poboru wody przez biomasę.
+    M : float
+        Współczynnik śmiertelności biomasy.
+    DN : float
+        Współczynnik dyfuzji biomasy.
+    LX : float
+        Długość boku domeny przestrzennej.
+
+    Zwraca
+    -------
+    tuple[float, float, float, float]
+        Parametry bezwymiarowe:
+        - a  : bezwymiarowy dopływ,
+        - m  : bezwymiarowa śmiertelność biomasy,
+        - d1 : bezwymiarowa dyfuzja wody,
+        - d2 : bezwymiarowa dyfuzja biomasy.
+
+    Wyjątki
+    --------
+    ValueError
+        Gdy któryś parametr jest niedodatni albo gdy wyrażenie pod
+        pierwiastkiem w warunku istnienia dodatniego stanu stacjonarnego
+        jest ujemne.
+
+    Uwagi
+    -----
+    Funkcja używa skal:
+    N0 = sqrt(L / R),
+    W0 = sqrt(L / (J^2 * R)),
+    T0 = 1 / R,
+    X0 = LX.
+
+    Następnie wyznacza parametry bezwymiarowe:
+    a = A / (L * W0),
+    m = M / L,
+    d1 = DW / (L * X0^2),
+    d2 = DN / (L * X0^2).
+    """
     if any(x <= 0 for x in (A, L, R, DW, J, M, DN, LX)):
         raise ValueError("Parametry muszą być dodatnie")
 
-    # skale
+    if A**2 - ((4 * L * M**2) / (J**2 * R)) < 0:
+        raise ValueError("Delta stanu podwójnego stanu stacjonarnego ujemna")
+
     N0 = np.sqrt(L / R)
     W0 = np.sqrt(L / (J**2 * R))
     T0 = 1 / R
-    X0 = LX # skalujemy przez rozmiar wymiaru
+    X0 = LX
 
-    # parametry bezwymiarowe
     a = A / (L * W0)
     m = M / L
     d1 = DW / (L * X0**2)
@@ -156,7 +210,7 @@ def check_ode_stability(a: float, m: float):
 # Macierz drugich pochodnych
 def D2(N: int) -> np.ndarray:
     """
-    Konstruuje macierz dyskretnej drugiej pochodnej w 1D
+    Konstruuje rzadką macierz dyskretnej drugiej pochodnej w 1D
     przy użyciu standardowego schematu trójdiagonalnego.
 
     Parametry
@@ -164,16 +218,17 @@ def D2(N: int) -> np.ndarray:
         Wymiar macierzy.
 
     Zwraca
-    np.ndarray
-        Macierz NxN aproksymująca operator d²/dx²
-        bez narzuconych warunków brzegowych.
+    scipy.sparse.csr_matrix
+        Macierz NxN aproksymująca operator d²/dx².
     """
-    return -2.0 * np.eye(N) + np.eye(N, k=1) + np.eye(N, k=-1)
+    diagonals = [np.ones(N - 1), -2.0 * np.ones(N), np.ones(N - 1), ]
+    offsets = [-1, 0, 1]
+    return diags(diagonals, offsets, shape=(N, N), format="csr")
 
 # Laplasjan
 def laplacian2D(Nx: int, Ny: int, h: float) -> np.ndarray:
     """
-    Konstruuje macierz dyskretnego operatora Laplace’a w 2D
+    Konstruuje rzadką macierz dyskretnego operatora Laplace’a w 2D
     na prostokątnej siatce o kroku h, wykorzystując iloczyn
     Kroneckera macierzy jednowymiarowych.
 
@@ -186,15 +241,15 @@ def laplacian2D(Nx: int, Ny: int, h: float) -> np.ndarray:
         Krok siatki (zakładamy hx = hy).
 
     Zwraca
-    np.ndarray
-        Macierz (Nx*Ny) x (Nx*Ny) będąca
-        dyskretnym operatorem Laplace’a.
+    scipy.sparse.csr_matrix
+        Macierz (Nx*Ny) x (Nx*Ny) będąca dyskretnym Laplasjanem 2D.
     """
     D2x = D2(Nx)
     D2y = D2(Ny)
-    Ix = np.eye(Nx)
-    Iy = np.eye(Ny)
-    return (np.kron(Iy, D2x) + np.kron(D2y, Ix)) / (h * h)
+    Ix = eye(Nx, format="csr")
+    Iy = eye(Ny, format="csr")
+    L = (kron(Iy, D2x) + kron(D2y, Ix)) / (h * h)
+    return L.tocsr()
 
 # Dyskretyzacja przestrzeni
 def make_grid(Lx: float, Ly: float, Nx: int, Ny: int):
@@ -284,18 +339,20 @@ def precompute_diffusion(Nx: int, Ny: int, h: float, ht: float, d1: float, d2: f
         Współczynnik dyfuzji drugiej zmiennej.
 
     Zwraca
-        (lu_Au, lu_Av), gdzie każdy element reprezentuje rozkład macierzy:
-            Au = I - ht * d1 * L,
-            Av = I - ht * d2 * L.
+    tuple
+        (lu_Au, lu_Av), gdzie każdy element jest obiektem
+        rozkładu LU dla macierzy rzadkiej.
     """
     L = laplacian2D(Nx, Ny, h)
-    I = np.eye(Nx * Ny)
+    I = eye(Nx * Ny, format="csc")
 
-    Au = I - ht * d1 * L
-    Av = I - ht * d2 * L
+    Au = (I - ht * d1 * L).tocsc()
+    Av = (I - ht * d2 * L).tocsc()
 
-    return lu_factor(Au), lu_factor(Av)
+    lu_Au = splu(Au)
+    lu_Av = splu(Av)
 
+    return lu_Au, lu_Av
 
 # Krok czasowy
 def step_reaction_diffusion(
@@ -330,11 +387,9 @@ def step_reaction_diffusion(
     ht : float
         Krok czasowy.
     lu_Au, lu_Av :
-        Rozkłady LU macierzy (I - ht d L).
+        Rozkłady LU macierzy rzadkich dla części dyfuzyjnej.
     brzeg : np.ndarray
         Maska warunków brzegowych Dirichleta.
-    clip_nonnegative : bool
-        Czy wymuszać nieujemność rozwiązania.
 
     Zwraca
         (u_new, v_new) — wartości w chwili t_{n+1}.
@@ -347,8 +402,8 @@ def step_reaction_diffusion(
     ru[brzeg] = 0
     rv[brzeg] = 0
 
-    u_new = lu_solve(lu_Au, ru)
-    v_new = lu_solve(lu_Av, rv)
+    u_new = lu_Au.solve(ru)
+    v_new = lu_Av.solve(rv)
 
     u_new = np.maximum(u_new, 0)
     v_new = np.maximum(v_new, 0)
@@ -357,7 +412,6 @@ def step_reaction_diffusion(
     v_new[brzeg] = 0
 
     return u_new, v_new
-
 
 # Symulacja do punktu stacjonarnego
 def simulate_to_steady(
@@ -370,7 +424,8 @@ def simulate_to_steady(
     lu_Av,
     brzeg: np.ndarray,
     krok_max: int = 500,
-    eps: float = 1e-8,
+    eps: float = 1e-6,
+    check_every=10,
 ):
     """
     Iteruje schemat czasowy aż do osiągnięcia stanu stacjonarnego, gdzie stosowane kryterium to:
@@ -403,8 +458,10 @@ def simulate_to_steady(
         u, v = step_reaction_diffusion(u, v, a, m, ht, lu_Au, lu_Av, brzeg=brzeg)
 
         # test zbieżności
-        if np.linalg.norm((v - v_prev)[~brzeg]) < eps:
-            return u, v, i + 1
+        if (i + 1) % check_every == 0:
+            err = np.max(np.abs(v[~brzeg] - v_prev[~brzeg]))
+            if err < eps:
+                return u, v, i + 1
 
     return u, v, krok_max
 
