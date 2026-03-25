@@ -43,7 +43,8 @@ def scan_turing_am(
                     "has_turing": 0,
                     "lambda_max": np.nan,
                     "k_left": np.nan,
-                    "k_right": np.nan
+                    "k_right": np.nan,
+                    "k_dom": np.nan,
                 })
                 continue
 
@@ -167,7 +168,7 @@ def a_m_pairs(results, m_values):
 
         # zbieramy tylko punkty z tym m i has_turing = 1
         for r in results:
-            if r["m"] == m and r["has_turing"] == 1 and np.isfinite(r["lambda_max"]):
+            if r["m"] == m and r["has_turing"] == 1 and np.isfinite(r["lambda_max"]) and r["lambda_max"] > 0:
                 dane_m.append(r)
 
         # jeśli brak punktów Turinga dla tego m
@@ -188,27 +189,42 @@ def a_m_pairs(results, m_values):
                 best = r
 
         # 2) średnia lambda_max dla tego m
-        suma = 0
-        for r in dane_m:
-            suma += r["lambda_max"]
-        srednia = suma / len(dane_m)
+#        suma = 0
+#        for r in dane_m:
+#            suma += r["lambda_max"]
+#        srednia = suma / len(dane_m)
 
         # punkt najbliższy średniej
-        mean_like = dane_m[0]
-        best_dist = abs(dane_m[0]["lambda_max"] - srednia)
+#        mean_like = dane_m[0]
+#        best_dist = abs(dane_m[0]["lambda_max"] - srednia)
+
+#        for r in dane_m:
+#            dist = abs(r["lambda_max"] - srednia)
+#            if dist < best_dist:
+#                best_dist = dist
+#                mean_like = r
+        # 2) mediana lambda_max dla tego m
+        lambda_vals = [r["lambda_max"] for r in dane_m]
+        mediana = np.median(lambda_vals)
+
+        # punkt najbliższy medianie
+        mediana_like = dane_m[0]
+        best_dist = abs(dane_m[0]["lambda_max"] - mediana)
 
         for r in dane_m:
-            dist = abs(r["lambda_max"] - srednia)
+            dist = abs(r["lambda_max"] - mediana)
             if dist < best_dist:
                 best_dist = dist
-                mean_like = r
+                median_like  = r
 
         out.append({
             "m": m,
             "a_max": best["a"],
             "lambda_max": best["lambda_max"],
-            "a_mean": mean_like["a"],
-            "lambda_mean_like": mean_like["lambda_max"]
+#            "a_mean": mean_like["a"],
+#            "lambda_mean_like": mean_like["lambda_max"],
+            "a_median": median_like["a"],
+            "lambda_median_like": median_like["lambda_max"],
         })
 
     return out

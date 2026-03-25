@@ -207,7 +207,7 @@ def plot_matrix(M, plot_title="Wykres", show=True):
 
 
 # Generowanie i zapisywanie macierzy
-def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100):
+def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100, T = 8000):
     """
     Zapisuje macierze i dane w zewnętrznym pliku.
 
@@ -219,20 +219,38 @@ def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100):
 
     U = []
     V = []
+    a_ok = []
+    m_ok = []
+    d1_ok = []
+    d2_ok = []
 
-    for i in range(length): #symulacja dla kolejnych parametrow
-        u, v = simulate_patterns(a_v[i], m_v[i], d1_v[i], d2_v[i], Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, T=8000, do_modelu=True)
-        # chcemy macierze czy wektory? obie czy v?
-        U.append(u)
-        V.append(v)
+    old_settings = np.seterr(over='raise', invalid='raise', divide='raise')
+
+    try:
+        for i in range(length): #symulacja dla kolejnych parametrow
+            try:
+                u, v = simulate_patterns(a_v[i], m_v[i], d1_v[i], d2_v[i], Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, T=T, do_modelu=True)
+
+                # chcemy macierze czy wektory? obie czy v?
+                U.append(u)
+                V.append(v)
+                a_ok.append(a_v[i])
+                m_ok.append(m_v[i])
+                d1_ok.append(d1_v[i])
+                d2_ok.append(d2_v[i])
+
+            except Exception:
+                continue
+    finally:
+        np.seterr(**old_settings)
 
     np.savez_compressed(f"{file_name}.npz",
                         U=np.array(U),
                         V=np.array(V),
-                        a=a_v,
-                        m=m_v,
-                        d1=d1_v,
-                        d2=d2_v,
+                        a=np.array(a_ok),
+                        m=np.array(m_ok),
+                        d1=np.array(d1_ok),
+                        d2=np.array(d2_ok),
                         patterns = np.full(length, -1, dtype=int) #bylo None ale czasem od neigo glupieje
                         ) # lub tu można też dać już wymiarowe parametry
 
