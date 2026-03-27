@@ -167,7 +167,7 @@ def plot_patterns(sim_data, wykres="uv"):
 # --------------------------------------------------
 # Wykresy ???
 # --------------------------------------------------
-def plot_matrix(M, plot_title="Wykres", show=True):
+def plot_matrix(M, plot_title="Wykres", show=True, cmap=None):
     """
     Rysuje wykres niespłaszczonej macierzy.
 
@@ -183,23 +183,31 @@ def plot_matrix(M, plot_title="Wykres", show=True):
     None
         Funkcja nie zwraca wartości, tylko rysuje wykres.
     """
+    if cmap is None:
+        cmap = cmap_v
+
     Ny, Nx = M.shape
     x = np.linspace(0, 1, Nx)
     y = np.linspace(0, 1, Ny)
     X, Y = np.meshgrid(x, y)
 
-    levels = np.linspace(M.min(), M.max(), 50)
+    vmin = M.min()
+    vmax = M.max()
+    if vmin == vmax:
+        vmax = vmin + 1e-8
+
+    levels = np.linspace(vmin, vmax, 50)
 
     plt.figure(figsize=(5, 4))
-    im = plt.contourf(X, Y, M, levels=levels, cmap="viridis")
+    im = plt.contourf(X, Y, M, levels=levels, cmap=cmap)
 
     plt.colorbar(im)
     plt.title(plot_title)
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.tight_layout()
 
     if show is True:
-        plt.xlabel("x")
-        plt.ylabel("y")
-        plt.tight_layout()
         plt.show()
     else:
         plt.show(block=False)
@@ -257,9 +265,13 @@ def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100, T
     print("Koniec zapisu.")
 
 # ogladamy obrazki i dopisujemy etykiety
-def define_patterns(file_name):
+def define_patterns(file_name, folder="wykresy_etykiety", cmap=None):
+    import os
     with np.load(f"{file_name}.npz", allow_pickle=True) as loader:
         dane = dict(loader)
+
+    if cmap is None:
+        cmap = cmap_v
 
     ile_macierzy = len(dane["V"])
     patterns = dane["patterns"].copy()
@@ -269,7 +281,8 @@ def define_patterns(file_name):
         if patterns[i] != -1:
             continue
 
-        plot_matrix(dane["V"][i], show=False)
+        title = f"{file_name}, i={i}"
+        plot_matrix(dane["V"][i], plot_title=title, show=False, cmap=cmap)
 
         odp = input("0. nic, 1. cętki, 2. pasy, 3. labirynty, 4. dziury, 5. coś (q=wyjdź): ")
 
@@ -285,9 +298,13 @@ def define_patterns(file_name):
         plt.close()
 
     dane["patterns"] = np.array(patterns)
+    os.makedirs(folder, exist_ok=True)
 
-    np.savez_compressed(f"{file_name}.npz", **dane)
+    output_path = os.path.join(folder, f"{file_name}.npz")
+
+    np.savez_compressed(output_path, **dane)
     print(f"Koniec. Etykiety ma {sum(1 for x in patterns if x != -1.)}/{ile_macierzy} macierzy.")
+    print(f"Plik zapisano do: {output_path}")
 
 # konwersja do csv z pominieciem macierzy
 def convert_to_csv(npz_file_name):

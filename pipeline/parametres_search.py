@@ -168,7 +168,12 @@ def a_m_pairs(results, m_values):
 
         # zbieramy tylko punkty z tym m i has_turing = 1
         for r in results:
-            if r["m"] == m and r["has_turing"] == 1 and np.isfinite(r["lambda_max"]) and r["lambda_max"] > 0:
+            if (
+                    r["m"] == m
+                    and r["has_turing"] == 1
+                    and np.isfinite(r["lambda_max"])
+                    and r["lambda_max"] > 0
+            ):
                 dane_m.append(r)
 
         # jeśli brak punktów Turinga dla tego m
@@ -182,49 +187,34 @@ def a_m_pairs(results, m_values):
             })
             continue
 
-        # 1) punkt z największym lambda_max
+        # maksimum lambda
         best = dane_m[0]
         for r in dane_m:
             if r["lambda_max"] > best["lambda_max"]:
                 best = r
 
-        # 2) średnia lambda_max dla tego m
-#        suma = 0
-#        for r in dane_m:
-#            suma += r["lambda_max"]
-#        srednia = suma / len(dane_m)
 
-        # punkt najbliższy średniej
-#        mean_like = dane_m[0]
-#        best_dist = abs(dane_m[0]["lambda_max"] - srednia)
-
-#        for r in dane_m:
-#            dist = abs(r["lambda_max"] - srednia)
-#            if dist < best_dist:
-#                best_dist = dist
-#                mean_like = r
-        # 2) mediana lambda_max dla tego m
-        lambda_vals = [r["lambda_max"] for r in dane_m]
-        mediana = np.median(lambda_vals)
-
-        # punkt najbliższy medianie
-        mediana_like = dane_m[0]
-        best_dist = abs(dane_m[0]["lambda_max"] - mediana)
+        # CZĘŚĆ Z WYBOREM PUNKTÓW
+        lambda_max_val = best["lambda_max"]
+        dane_strong = []
 
         for r in dane_m:
-            dist = abs(r["lambda_max"] - mediana)
-            if dist < best_dist:
-                best_dist = dist
-                median_like  = r
+            if r["lambda_max"] >= 0.25 * lambda_max_val:
+                dane_strong.append(r)
+
+        if len(dane_strong) == 0:
+            dane_strong = dane_m
+
+        dane_strong = sorted(dane_strong, key=lambda r: r["a"])
+        a_band = [r["a"] for r in dane_strong]
+        lambda_band = [r["lambda_max"] for r in dane_strong]
 
         out.append({
             "m": m,
             "a_max": best["a"],
             "lambda_max": best["lambda_max"],
-#            "a_mean": mean_like["a"],
-#            "lambda_mean_like": mean_like["lambda_max"],
-            "a_median": median_like["a"],
-            "lambda_median_like": median_like["lambda_max"],
+            "a_band": a_band,
+            "lambda_band": lambda_band,
         })
 
     return out
