@@ -32,20 +32,21 @@ def scan_turing_am(
             except:
                 u_star, v_star = np.nan, np.nan
 
-                # pomijamy przypadki bez sensownego dodatniego stanu
-                if not np.isfinite(u_star) or not np.isfinite(v_star) or v_star <= 1:
-                    results.append({
-                        "a": a,
-                        "m": m,
-                        "u_star": np.nan,
-                        "v_star": np.nan,
-                        "has_state": 0,
-                        "has_turing": 0,
-                        "lambda_max": np.nan,
-                        "k_left": np.nan,
-                        "k_right": np.nan
-                    })
-                    continue
+            # pomijamy przypadki bez sensownego dodatniego stanu
+            if not np.isfinite(u_star) or not np.isfinite(v_star) or v_star <= 1:
+                results.append({
+                    "a": a,
+                    "m": m,
+                    "u_star": np.nan,
+                    "v_star": np.nan,
+                    "has_state": 0,
+                    "has_turing": 0,
+                    "lambda_max": np.nan,
+                    "k_left": np.nan,
+                    "k_right": np.nan,
+                    "k_dom": np.nan,
+                })
+                continue
 
             try:
                 res = turing_analysis(a, m, d1, d2, k_min=k_min, k_max=k_max, n_k=n_k)
@@ -158,3 +159,62 @@ def plot_turing_regions(results, ax = None):
     ax.set_title("Mapa stanów w płaszczyźnie (a, m)")
     ax.legend()
     ax.grid(True, alpha=0.3)
+
+def a_m_pairs(results, m_values):
+    out = []
+
+    for m in m_values:
+        dane_m = []
+
+        # zbieramy tylko punkty z tym m i has_turing = 1
+        for r in results:
+            if (
+                    r["m"] == m
+                    and r["has_turing"] == 1
+                    and np.isfinite(r["lambda_max"])
+                    and r["lambda_max"] > 0
+            ):
+                dane_m.append(r)
+
+        # jeśli brak punktów Turinga dla tego m
+        if len(dane_m) == 0:
+            out.append({
+                "m": m,
+                "a_max": np.nan,
+                "lambda_max": np.nan,
+                "a_mean": np.nan,
+                "lambda_mean_like": np.nan
+            })
+            continue
+
+        # maksimum lambda
+        best = dane_m[0]
+        for r in dane_m:
+            if r["lambda_max"] > best["lambda_max"]:
+                best = r
+
+
+        # CZĘŚĆ Z WYBOREM PUNKTÓW
+        lambda_max_val = best["lambda_max"]
+        dane_strong = []
+
+        for r in dane_m:
+            if r["lambda_max"] >= 0.25 * lambda_max_val:
+                dane_strong.append(r)
+
+        if len(dane_strong) == 0:
+            dane_strong = dane_m
+
+        dane_strong = sorted(dane_strong, key=lambda r: r["a"])
+        a_band = [r["a"] for r in dane_strong]
+        lambda_band = [r["lambda_max"] for r in dane_strong]
+
+        out.append({
+            "m": m,
+            "a_max": best["a"],
+            "lambda_max": best["lambda_max"],
+            "a_band": a_band,
+            "lambda_band": lambda_band,
+        })
+
+    return out

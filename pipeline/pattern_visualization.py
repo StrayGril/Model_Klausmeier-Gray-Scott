@@ -99,18 +99,8 @@ def simulate_patterns(a, m, d1, d2, Lx, Ly, Nx, Ny, T, ht = 0.025, noise=1e-2, d
     u_0, v_0 = initial_conditions(Nx, Ny, a, m, brzeg, noise)
     u_curr, v_curr = u_0.copy(), v_0.copy()
 
-    states = {"0": (u_0.copy(), v_0.copy())}
-    snapshot_times = {
-        T // 2: "T/2",
-        3 * T // 4: "3T/4",
-        T: "T"
-    }
-
-    for t in range(1, T + 1):
+    for t in range(T):
         u_curr, v_curr = step_reaction_diffusion(u_curr, v_curr, a, m, ht, lu_Au, lu_Av, brzeg)
-        if t in snapshot_times:
-            label = snapshot_times[t]
-            states[label] = (u_curr.copy(), v_curr.copy())
 
     if do_modelu is True:
         return u_curr.reshape(Ny, Nx), v_curr.reshape(Ny, Nx)
@@ -122,7 +112,6 @@ def simulate_patterns(a, m, d1, d2, Lx, Ly, Nx, Ny, T, ht = 0.025, noise=1e-2, d
         "v0": v_0,
         "uT": u_curr,
         "vT": v_curr,
-        "states": states,
     }
 
 # --------------------------------------------------
@@ -153,12 +142,12 @@ def plot_patterns(sim_data, wykres="uv"):
     
     if "u" in wykres:
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        dane = [states[t][1] for t in states]
+        dane = [states[t][0] for t in states]
         levels = np.linspace(min(d.min() for d in dane), max(d.max() for d in dane), 50)
 
-        for ax, (t, (_, v)) in zip(axs.flat, states.items()):
-            im = ax.contourf(X, Y, v.reshape(Ny, Nx), levels=levels, cmap=cmap_v)
-            ax.set_title(f"Biomasa v(t={t})")
+        for ax, (t, (u, _)) in zip(axs.flat, states.items()):
+            im = ax.contourf(X, Y, u.reshape(Ny, Nx), levels=levels, cmap=cmap_u)
+            ax.set_title(f"Woda u(t={t})")
 
         fig.colorbar(im, ax=axs)
         plt.show()
@@ -178,7 +167,7 @@ def plot_patterns(sim_data, wykres="uv"):
 # --------------------------------------------------
 # Wykresy ???
 # --------------------------------------------------
-def plot_matrix(M, plot_title="Wykres", show=True):
+def plot_matrix(M, plot_title="Wykres", show=True, cmap=None):
     """
     Rysuje wykres niespłaszczonej macierzy.
 
@@ -194,23 +183,31 @@ def plot_matrix(M, plot_title="Wykres", show=True):
     None
         Funkcja nie zwraca wartości, tylko rysuje wykres.
     """
+    if cmap is None:
+        cmap = cmap_v
+
     Ny, Nx = M.shape
     x = np.linspace(0, 1, Nx)
     y = np.linspace(0, 1, Ny)
     X, Y = np.meshgrid(x, y)
 
-    levels = np.linspace(M.min(), M.max(), 50)
+    vmin = M.min()
+    vmax = M.max()
+    if vmin == vmax:
+        vmax = vmin + 1e-8
+
+    levels = np.linspace(vmin, vmax, 50)
 
     plt.figure(figsize=(5, 4))
-    im = plt.contourf(X, Y, M, levels=levels, cmap="viridis")
+    im = plt.contourf(X, Y, M, levels=levels, cmap=cmap)
 
     plt.colorbar(im)
     plt.title(plot_title)
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.tight_layout()
 
     if show is True:
-        plt.xlabel("x")
-        plt.ylabel("y")
-        plt.tight_layout()
         plt.show()
     else:
         plt.show(block=False)
@@ -218,7 +215,7 @@ def plot_matrix(M, plot_title="Wykres", show=True):
 
 
 # Generowanie i zapisywanie macierzy
-def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100):
+def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100, T = 8000):
     """
     Zapisuje macierze i dane w zewnętrznym pliku.
 
@@ -230,29 +227,51 @@ def save_as_npz(file_name, a_v, m_v, d1_v, d2_v, Lx=20, Ly=20, Nx=100, Ny=100):
 
     U = []
     V = []
+    a_ok = []
+    m_ok = []
+    d1_ok = []
+    d2_ok = []
 
-    for i in range(length): #symulacja dla kolejnych parametrow
-        u, v = simulate_patterns(a_v[i], m_v[i], d1_v[i], d2_v[i], Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, T=8000, do_modelu=True)
-        # chcemy macierze czy wektory? obie czy v?
-        U.append(u)
-        V.append(v)
+    old_settings = np.seterr(over='raise', invalid='raise', divide='raise')
+
+    try:
+        for i in range(length): #symulacja dla kolejnych parametrow
+            try:
+                u, v = simulate_patterns(a_v[i], m_v[i], d1_v[i], d2_v[i], Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, T=T, do_modelu=True)
+
+                # chcemy macierze czy wektory? obie czy v?
+                U.append(u)
+                V.append(v)
+                a_ok.append(a_v[i])
+                m_ok.append(m_v[i])
+                d1_ok.append(d1_v[i])
+                d2_ok.append(d2_v[i])
+
+            except Exception:
+                continue
+    finally:
+        np.seterr(**old_settings)
 
     np.savez_compressed(f"{file_name}.npz",
                         U=np.array(U),
                         V=np.array(V),
-                        a=a_v,
-                        m=m_v,
-                        d1=d1_v,
-                        d2=d2_v,
+                        a=np.array(a_ok),
+                        m=np.array(m_ok),
+                        d1=np.array(d1_ok),
+                        d2=np.array(d2_ok),
                         patterns = np.full(length, -1, dtype=int) #bylo None ale czasem od neigo glupieje
                         ) # lub tu można też dać już wymiarowe parametry
 
     print("Koniec zapisu.")
 
 # ogladamy obrazki i dopisujemy etykiety
-def define_patterns(file_name):
+def define_patterns(file_name, folder="wykresy_etykiety", cmap=None):
+    import os
     with np.load(f"{file_name}.npz", allow_pickle=True) as loader:
         dane = dict(loader)
+
+    if cmap is None:
+        cmap = cmap_v
 
     ile_macierzy = len(dane["V"])
     patterns = dane["patterns"].copy()
@@ -262,7 +281,8 @@ def define_patterns(file_name):
         if patterns[i] != -1:
             continue
 
-        plot_matrix(dane["V"][i], show=False)
+        title = f"{file_name}, i={i}"
+        plot_matrix(dane["V"][i], plot_title=title, show=False, cmap=cmap)
 
         odp = input("0. nic, 1. cętki, 2. pasy, 3. labirynty, 4. dziury, 5. coś (q=wyjdź): ")
 
@@ -278,9 +298,13 @@ def define_patterns(file_name):
         plt.close()
 
     dane["patterns"] = np.array(patterns)
+    os.makedirs(folder, exist_ok=True)
 
-    np.savez_compressed(f"{file_name}.npz", **dane)
+    output_path = os.path.join(folder, f"{file_name}.npz")
+
+    np.savez_compressed(output_path, **dane)
     print(f"Koniec. Etykiety ma {sum(1 for x in patterns if x != -1.)}/{ile_macierzy} macierzy.")
+    print(f"Plik zapisano do: {output_path}")
 
 # konwersja do csv z pominieciem macierzy
 def convert_to_csv(npz_file_name):
