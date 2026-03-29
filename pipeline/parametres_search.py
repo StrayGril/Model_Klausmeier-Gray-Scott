@@ -32,20 +32,21 @@ def scan_turing_am(
             except:
                 u_star, v_star = np.nan, np.nan
 
-                # pomijamy przypadki bez sensownego dodatniego stanu
-                if not np.isfinite(u_star) or not np.isfinite(v_star) or v_star <= 1:
-                    results.append({
-                        "a": a,
-                        "m": m,
-                        "u_star": np.nan,
-                        "v_star": np.nan,
-                        "has_state": 0,
-                        "has_turing": 0,
-                        "lambda_max": np.nan,
-                        "k_left": np.nan,
-                        "k_right": np.nan
-                    })
-                    continue
+            # pomijamy przypadki bez sensownego dodatniego stanu
+            if not np.isfinite(u_star) or not np.isfinite(v_star) or v_star <= 1:
+                results.append({
+                    "a": a,
+                    "m": m,
+                    "u_star": np.nan,
+                    "v_star": np.nan,
+                    "has_state": 0,
+                    "has_turing": 0,
+                    "lambda_max": np.nan,
+                    "k_left": np.nan,
+                    "k_right": np.nan,
+                    "k_dom": np.nan,
+                })
+                continue
 
             try:
                 res = turing_analysis(a, m, d1, d2, k_min=k_min, k_max=k_max, n_k=n_k)
@@ -115,7 +116,7 @@ def unpack_scan_results(results):
 
     return A, M, S, T, L, V, K1, K2, KD
 
-def plot_lambda_map(results, figsize=(8, 5)):
+def plot_lambda_map(results, ax=None):
     """
     Rysuje mapę max Re(lambda) w płaszczyźnie (a, m).
     """
@@ -123,16 +124,17 @@ def plot_lambda_map(results, figsize=(8, 5)):
 
     mask = np.isfinite(L)
 
-    plt.figure(figsize=figsize)
-    sc = plt.scatter(A[mask], M[mask], c=L[mask], s=18)
-    plt.colorbar(sc, label=r"maxRe($\lambda$)")
-    plt.xlabel("a")
-    plt.ylabel("m")
-    plt.title(r"Mapa wartości maxRe($\lambda$)")
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 5))
 
-def plot_turing_regions(results, figsize=(8, 5)):
+    sc = ax.scatter(A[mask], M[mask], c=L[mask], s=18)
+    plt.colorbar(sc, ax=ax, label=r"maxRe($\lambda$)")
+    ax.set_xlabel("a")
+    ax.set_ylabel("m")
+    ax.set_title(r"Mapa wartości maxRe($\lambda$)")
+    ax.grid(True, alpha=0.3)
+
+def plot_turing_regions(results, ax = None):
     """
     Rysuje mapę klas:
     - brak stanu,
@@ -145,14 +147,83 @@ def plot_turing_regions(results, figsize=(8, 5)):
     mask_state_no_turing = (S == 1) & (T == 0)
     mask_turing = (T == 1)
 
-    plt.figure(figsize=figsize)
-    plt.scatter(A[mask_no_state], M[mask_no_state], s=8, alpha=0.35, label="brak stanu")
-    plt.scatter(A[mask_state_no_turing], M[mask_state_no_turing], s=8, alpha=0.50, label="stan stabilny")
-    plt.scatter(A[mask_turing], M[mask_turing], s=12, alpha=0.9, label="obszar Turinga")
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 5))
 
-    plt.xlabel("a")
-    plt.ylabel("m")
-    plt.title("Mapa stanów w płaszczyźnie (a, m)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    ax.scatter(A[mask_no_state], M[mask_no_state], s=8, alpha=0.35, label="brak stanu")
+    ax.scatter(A[mask_state_no_turing], M[mask_state_no_turing], s=8, alpha=0.50, label="stan stabilny")
+    ax.scatter(A[mask_turing], M[mask_turing], s=12, alpha=0.9, label="obszar Turinga")
+
+    ax.set_xlabel("a")
+    ax.set_ylabel("m")
+    ax.set_title("Mapa stanów w płaszczyźnie (a, m)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+def a_m_pairs(results, m_values, n_selected=5, ):
+    out = []
+
+    for m in m_values:
+        dane_m = []
+
+        # zbieramy tylko punkty z tym m i has_turing = 1
+        for r in results:
+            if (
+                    r["m"] == m
+                    and r["has_turing"] == 1
+                    and np.isfinite(r["lambda_max"])
+                    and r["lambda_max"] > 0
+            ):
+                dane_m.append(r)
+
+        # jeśli brak punktów Turinga dla tego m
+        if len(dane_m) == 0:
+            out.append({
+                "m": m,
+                "a_max": np.nan,
+                "lambda_max": np.nan,
+                "a_band": [],
+                "lambda_band": []
+            })
+            continue
+
+        # maksimum lambda
+        best = dane_m[0]
+        for r in dane_m:
+            if r["lambda_max"] > best["lambda_max"]:
+                best = r
+
+
+        # CZĘŚĆ Z WYBOREM PUNKTÓW
+        lambda_max_val = best["lambda_max"]
+        dane_strong = []
+
+        for r in dane_m:
+            if r["lambda_max"] >= 0.25 * lambda_max_val:
+                dane_strong.append(r)
+
+        if len(dane_strong) == 0:
+            dane_strong = dane_m
+
+        dane_strong = sorted(dane_strong, key=lambda r: r["a"])
+
+        n_take = min(n_selected, len(dane_strong))
+        idx = np.linspace(0, len(dane_strong) - 1, n_take, dtype=int)
+        idx = np.unique(idx)
+
+        selected = []
+        for i in idx:
+            selected.append(dane_strong[i])
+
+        a_band = [round(r["a"], 4) for r in selected] # !!!przybliżenie
+        lambda_band = [r["lambda_max"] for r in selected]
+
+        out.append({
+            "m": m,
+            "a_max": best["a"],
+            "lambda_max": best["lambda_max"],
+            "a_band": a_band,
+            "lambda_band": lambda_band,
+        })
+
+    return out
