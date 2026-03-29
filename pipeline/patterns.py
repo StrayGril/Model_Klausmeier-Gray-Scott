@@ -110,7 +110,7 @@ def simulate_patterns(
     noise : float
         Amplitude of the random perturbation in the initial condition.
     return_matrices : bool
-        If ``True``, returns final 2D matrices ``u`` and ``v``.
+        If ``True``, returns only final 2D matrices ``u`` and ``v``.
     check_every : int
         Frequency of computing statistics.
     tol_mean, tol_max,  tol_var: float
@@ -167,7 +167,9 @@ def simulate_patterns(
         )
 
         # Stop if NaN or inf is detected
-        if (not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr))):
+        # zmiana na maksymalna wartosc powiedzmy 100 - nie jestem pewna ale nie powinny byc az takie duze w v
+        #if (not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr))):
+        if ((not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr)))) or (np.max(v_curr) > 100):
             nan_detected = True
 
             if last_pattern_u is not None:
@@ -177,7 +179,8 @@ def simulate_patterns(
 
                 if verbose:
                     print(
-                        f"NaN/inf detected at step {step + 1} - returning the last "
+                        #f"NaN/inf detected at step {last_step + 1} - returning the last "
+                        f"The solution starts to blow up at step {last_step + 1} - returning the last "
                         f"patterned state from step {last_pattern_step}"
                     )
             elif len(history) > 0:
@@ -188,7 +191,8 @@ def simulate_patterns(
 
                 if verbose:
                     print(
-                        f"NaN/inf detected at step {step + 1} - no patterned state "
+                        #f"NaN/inf detected at step {last_step + 1} - no patterned state "
+                        f"The solution starts to blow up at step {last_step + 1} - no patterned state "
                         f"available, returning saved state from step {last_step}"
                     )
 
@@ -199,7 +203,7 @@ def simulate_patterns(
 
                 if verbose:
                     print(
-                        f"NaN/inf detected at step {step + 1} - no patterned state "
+                        f"NaN/inf detected at step {last_step + 1} - no patterned state "
                         f"stored, returning last valid state from step {last_valid_step}"
                     )
             break
@@ -241,7 +245,7 @@ def simulate_patterns(
 
             if verbose:
                 print(
-                    f"step={step + 1}, mean(v)={mean_v:.6e}, "
+                    f"step={last_step + 1}, mean(v)={mean_v:.6e}, "
                     f"max(v)={max_v:.6e}, var(v)={var_v:.6e}, "
                     f"patterns_detected={patterns_now}"
                 )
@@ -263,7 +267,7 @@ def simulate_patterns(
                         last_step = last_pattern_step
 
                     if verbose:
-                        print(f"Stopped early after stabilization at step {step + 1}")
+                        print(f"Stopped early after stabilization at step {last_step + 1}")
                     break
 
     if return_matrices is True:
@@ -313,7 +317,7 @@ def plot_patterns(sim_data: dict, plot: str = "uv"):
         "T": (sim_data["uT"], sim_data["vT"])
     }
     
-    if "u" in wykres:
+    if "u" in plot:
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
         data = [states[t][0] for t in states]
         levels = np.linspace(min(d.min() for d in data), max(d.max() for d in data), 50)
@@ -325,7 +329,7 @@ def plot_patterns(sim_data: dict, plot: str = "uv"):
         fig.colorbar(im, ax=axs)
         plt.show()
 
-    if "v" in wykres:
+    if "v" in plot:
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
         data = [states[t][1] for t in states]
         levels = np.linspace(min(d.min() for d in data), max(d.max() for d in data), 50)
