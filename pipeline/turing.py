@@ -151,8 +151,8 @@ def turing_analysis(
 # ----------------
 def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict):
     """
-    Plots the dispersion relation ``lambda(k)`` together with
-    the marked Turing band.
+    Plots the dispersion relation and marks the characteristic points
+    of the Turing instability band.
 
     Parameters
     k_values : np.ndarray
@@ -161,6 +161,10 @@ def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict):
         Maximal real part of the dispersion relation.
     band : dict
         Dictionary describing the Turing band.
+
+    Returns
+    None
+        The function does not return any value. It only displays the plot.
     """
     plt.figure(figsize=(8,5))
 
@@ -193,21 +197,34 @@ def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict):
 # Turing scan over the (a, m) plane
 # ----------------------------------
 def scan_turing_am(
-    d1,
-    d2,
-    m_values,
-    a_values,
-    k_min=0,
-    k_max=20,
-    n_k=4000,
+    d1: float,
+    d2: float,
+    m_values: np.ndarray,
+    a_values: np.ndarray,
+    k_min: float = 0,
+    k_max: float = 20,
+    n_k: int = 4000,
 ):
     """
-    Scans the ``(a, m)`` plane for fixed diffusion coefficients ``d1`` and ``d2``.
+    Scans the parameter plane ``(a, m)`` for fixed diffusion coefficients
+    and checks where Turing instability may occur.
 
-    Returns a list of dictionaries containing information about:
-    - existence of a homogeneous state,
-    - maximal value of ``Re(lambda)``,
-    - Turing band information.
+    Parameters
+    d1, d2 : float
+        Diffusion coefficients.
+    m_values, a_values : array-like
+        Array of tested values of parameters ``m`` and ``a``.
+    k_min, k_max : float
+        Bounds of the analyzed wavenumber range.
+    n_k : int, default=4000
+        Number of wavenumber values used in the dispersion analysis.
+
+    Returns
+    list[dict]
+        List of dictionaries. Each dictionary contains information
+        about one tested pair ``(a, m)``, including the homogeneous
+        state, existence of Turing instability, maximal growth rate,
+        and characteristic wavenumbers.
     """
     results = []
 
@@ -286,10 +303,21 @@ def scan_turing_am(
 
     return results
 
-def unpack_scan_results(results):
+def unpack_scan_results(results: list[dict]):
     """
     Converts the list of dictionaries returned by ``scan_turing_am``
     into NumPy arrays.
+
+    Parameters
+    results : list[dict]
+        Output returned by ``scan_turing_am``.
+
+    Returns
+    tuple
+        Tuple of NumPy arrays in the following order:
+        ``(a_array, m_array, has_state_array, has_turing_array,
+        lambda_max_array, v_star_array, k_left_array,
+        k_right_array, k_dom_array)``.
     """
     a_array = np.array([r["a"] for r in results])
     m_array = np.array([r["m"] for r in results])
@@ -313,9 +341,21 @@ def unpack_scan_results(results):
         k_dom_array,
     )
 
-def plot_lambda_map(results, ax=None):
+def plot_lambda_map(results: list[dict], ax=None):
     """
-    Plots the map of ``max Re(lambda)`` in the ``(a, m)`` plane.
+    Plots the map of the maximal growth rate ``max Re(lambda)``
+    in the parameter plane ``(a, m)``.
+
+    Parameters
+    results : list[dict]
+        Output returned by ``scan_turing_am``.
+    ax : matplotlib.axes.Axes | None, default=None
+        Axis on which the plot is drawn. If ``None``, a new figure
+        and axis are created.
+
+    Returns
+    None
+        The function does not return any value. It only draws the plot.
     """
     (
         a_array,
@@ -341,12 +381,21 @@ def plot_lambda_map(results, ax=None):
     ax.set_title(r"Map of max Re($\lambda$)")
     ax.grid(True, alpha=0.3)
 
-def plot_turing_regions(results, ax = None):
+def plot_turing_regions(results: list[dict], ax = None):
     """
-    Rysuje mapę klas:
-    - brak stanu,
-    - stan stabilny,
-    - obszar Turinga.
+    Plots the classification of points in the parameter plane ``(a, m)``
+    into no state, stable state, and Turing region.
+
+    Parameters
+    results : list[dict]
+        Output returned by ``scan_turing_am``.
+    ax : matplotlib.axes.Axes | None, default=None
+        Axis on which the plot is drawn. If ``None``, a new figure
+        and axis are created.
+
+    Returns
+    None
+        The function does not return any value. It only draws the plot.
     """
     (
         a_array,
@@ -377,14 +426,22 @@ def plot_turing_regions(results, ax = None):
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-def a_m_pairs(results, m_values):
+def a_m_pairs(results: list[dict], m_values: np.ndarray,):
     """
-        For each value of ``m``, extracts characteristic ``a`` values
-        associated with the Turing region.
+    Extracts characteristic values of parameter ``a`` for each selected
+    value of ``m`` inside the Turing region.
 
-        Returns a list of dictionaries containing:
-        - the point with the largest ``lambda_max``,
-        - a selected band of strong Turing points.
+    Parameters
+    results : list[dict]
+        Output returned by ``scan_turing_am``.
+    m_values : array-like
+        Array of selected values of parameter ``m``.
+
+    Returns
+    list[dict]
+        List of dictionaries. For each value of ``m``, the output contains
+        the point with the largest ``lambda_max`` and a selected band
+        of strong Turing points.
         """
     out = []
 
