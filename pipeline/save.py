@@ -100,6 +100,7 @@ def save_as_npz(
                 if verbose:
                     print(
                         f"Błąd dla i={i}, a={a_vector[i]}, m={m_vector[i]}, "
+                        f"Error for i={i}, a={a_vector[i]}, m={m_vector[i]}, "
                         f"d1={d1_vector[i]}, d2={d2_vector[i]}: {e}"
                     )
                 continue
@@ -194,6 +195,7 @@ def define_patterns(file_name, folder="wykresy_etykiety", folder_old="wykresy_be
         dane[key] = dane[key][keep_mask]
 
     dane["patterns"] = patterns[keep_mask]
+    data["patterns"] = patterns[keep_mask]
 
     print(f"Deleted {np.sum(~keep_mask)}/{length} matrices.")
 

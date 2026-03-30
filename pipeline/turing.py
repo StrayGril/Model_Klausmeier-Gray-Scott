@@ -303,6 +303,9 @@ def scan_turing_am(
 
     return results
 
+# ------------------------
+# scan_turing_am to arrays
+# ------------------------
 def unpack_scan_results(results: list[dict]):
     """
     Converts the list of dictionaries returned by ``scan_turing_am``
@@ -341,6 +344,9 @@ def unpack_scan_results(results: list[dict]):
         k_dom_array,
     )
 
+# ------------------------
+# Plot for lambda value
+# ------------------------
 def plot_lambda_map(results: list[dict], ax=None):
     """
     Plots the map of the maximal growth rate ``max Re(lambda)``
@@ -381,6 +387,9 @@ def plot_lambda_map(results: list[dict], ax=None):
     ax.set_title(r"Map of max Re($\lambda$)")
     ax.grid(True, alpha=0.3)
 
+# ------------------------
+# Plot for Turing region
+# ------------------------
 def plot_turing_regions(results: list[dict], ax = None):
     """
     Plots the classification of points in the parameter plane ``(a, m)``
@@ -426,23 +435,34 @@ def plot_turing_regions(results: list[dict], ax = None):
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-def a_m_pairs(results: list[dict], m_values: np.ndarray,):
+# ---------------------------------------------------
+# Chosing representative (a,m) for pattern simulation
+# ---------------------------------------------------
+def a_m_pairs(results: list[dict], m_values: np.ndarray, k: int = 5,):
     """
-    Extracts characteristic values of parameter ``a`` for each selected
-    value of ``m`` inside the Turing region.
+    Extracts k representative values of parameter a for each selected
+    value of m inside the Turing region.
+
+    The selected points are taken as evenly as possible from the list
+    of Turing points ordered increasingly with respect to a.
 
     Parameters
     results : list[dict]
-        Output returned by ``scan_turing_am``.
-    m_values : array-like
-        Array of selected values of parameter ``m``.
+        Output returned by scan_turing_am.
+    m_values : np.ndarray
+        Array of selected values of parameter m.
+    k : int
+        Number of representative points to return for each m.
 
     Returns
     list[dict]
-        List of dictionaries. For each value of ``m``, the output contains
-        the point with the largest ``lambda_max`` and a selected band
-        of strong Turing points.
-        """
+        For each m, returns:
+        - m
+        - a_max: value of a corresponding to the largest lambda_max
+        - lambda_max: largest value of lambda_max
+        - a_band: selected values of a
+        - lambda_band: corresponding values of lambda_max
+    """
     out = []
 
     for m in m_values:
@@ -465,8 +485,8 @@ def a_m_pairs(results: list[dict], m_values: np.ndarray,):
                 "m": m,
                 "a_max": np.nan,
                 "lambda_max": np.nan,
-                "a_mean": np.nan,
-                "lambda_mean_like": np.nan
+                "a_band": [],
+                "lambda_band": [],
                 }
             )
             continue
@@ -476,19 +496,22 @@ def a_m_pairs(results: list[dict], m_values: np.ndarray,):
             if result["lambda_max"] > best_result["lambda_max"]:
                 best_result = result
 
+        data_for_m = sorted(data_for_m, key=lambda result: result["a"])
+        n = len(data_for_m)
+
+        if n <= k:
+            selected_data = data_for_m
+        else:
+            indices = np.linspace(0, n - 1, k)
+            indices = np.round(indices).astype(int)
+            indices = np.unique(indices)
+            selected_data = [data_for_m[i] for i in indices]
+
         lambda_max_val = best_result["lambda_max"]
         strong_data = []
 
-        for result in data_for_m:
-            if result["lambda_max"] >= 0.25 * lambda_max_val:
-                strong_data.append(result)
-
-        if len(strong_data) == 0:
-            strong_data = data_for_m
-
-        strong_data = sorted(strong_data, key=lambda result: result["a"])
-        a_band = [result["a"] for result in strong_data]
-        lambda_band = [result["lambda_max"] for result in strong_data]
+        a_band = [result["a"] for result in selected_data]
+        lambda_band = [result["lambda_max"] for result in selected_data]
 
         out.append(
             {
