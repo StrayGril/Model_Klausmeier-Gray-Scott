@@ -188,9 +188,14 @@ Desktop.ini
 .vscode/
 
 # Local experiment outputs
-data/wykresy_bez_etykiet/
-data/wykresy_etykiety/
-data/wykresy_etykiety_csv/
+data/wykresy_bez_etykiet/*
+data/wykresy_etykiety/*
+data/wykresy_etykiety_csv/*
+
+# Keep folder structure
+!data/wykresy_bez_etykiet/.gitkeep
+!data/wykresy_etykiety/.gitkeep
+!data/wykresy_etykiety_csv/.gitkeep
 
 # Optional: ignore generated binary/data files everywhere
 *.npz
