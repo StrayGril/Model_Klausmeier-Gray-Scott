@@ -101,7 +101,6 @@ def save_as_npz(
                     
                 u = sim_data["uT"].reshape(ny, nx)
                 v = sim_data["vT"].reshape(ny, nx)
-                T_end = sim_data["last_step"]
                     
                 if (not np.all(np.isfinite(u))) or (not np.all(np.isfinite(v))):
                     if verbose:
@@ -145,6 +144,13 @@ def save_as_npz(
         m=np.array(m_ok),
         d1=np.array(d1_ok),
         d2=np.array(d2_ok),
+        T_end=np.array(T_end_ok),
+        mean_v_0=np.array(mean_v_0_ok),
+        var_v_0=np.array(var_v_0_ok),
+        max_v_0=np.array(max_v_0_ok),
+        mean_v_T=np.array(mean_v_T_ok),
+        var_v_T=np.array(var_v_T_ok),
+        max_v_T=np.array(max_v_T_ok),
         patterns=np.full(len(a_ok), -1, dtype=int)
     )
 
@@ -222,8 +228,14 @@ def define_patterns(
     patterns = np.array(patterns)
     keep_mask = patterns < 99
 
-    for key in ["U", "V", "a", "m", "d1", "d2"]:
-        data[key] = data[key][keep_mask]
+    for key in [
+        "U", "V", "a", "m", "d1", "d2",
+        "T_end",
+        "mean_v_0", "var_v_0", "max_v_0",
+        "mean_v_T", "var_v_T", "max_v_T"
+    ]:
+            if key in data:
+                    data[key] = data[key][keep_mask]
 
     data["patterns"] = patterns[keep_mask]
 
@@ -279,6 +291,13 @@ def convert_to_csv(
             'm': data['m'],
             'd1': data['d1'],
             'd2': data['d2'],
+            'T_end': data['T_end'],
+            'mean_v_0': data['mean_v_0'],
+            'var_v_0': data['var_v_0'],
+            'max_v_0': data['max_v_0'],
+            'mean_v_T': data['mean_v_T'],
+            'var_v_T': data['var_v_T'],
+            'max_v_T': data['max_v_T'],
             'pattern': data['patterns']
         }
 
