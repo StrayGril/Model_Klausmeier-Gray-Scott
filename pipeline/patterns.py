@@ -136,6 +136,12 @@ def simulate_patterns(
     u_0, v_0 = initial_conditions(nx, ny, a, m, boundary_mask, noise=noise)
 
     u_curr, v_curr = u_0.copy(), v_0.copy()
+    
+    # Statistics
+    v0_inside = v_0[~boundary_mask]
+    mean_v_0 = np.mean(v0_inside)
+    max_v_0 = np.max(v0_inside)
+    var_v_0 = np.var(v0_inside)
 
     stats_hist = []
     stopped_early = False
@@ -273,6 +279,12 @@ def simulate_patterns(
     if return_matrices is True:
         return u_curr.reshape(ny, nx), v_curr.reshape(ny, nx)
 
+    # Statistics at end
+    vT_inside = v_curr[~boundary_mask]
+    mean_v_T = np.mean(vT_inside)
+    max_v_T = np.max(vT_inside)
+    var_v_T = np.var(vT_inside)
+
     return {
         "X": X,
         "Y": Y,
@@ -286,6 +298,12 @@ def simulate_patterns(
         "patterns_detected": patterns_detected,
         "last_step": last_step,
         "last_pattern_step": last_pattern_step,
+        "mean_v_0": mean_v_0,
+        "max_v_0": max_v_0,
+        "var_v_0": var_v_0,
+        "mean_v_T": mean_v_T,
+        "max_v_T": max_v_T,
+        "var_v_T": var_v_T,
     }
 
 # -----------------
