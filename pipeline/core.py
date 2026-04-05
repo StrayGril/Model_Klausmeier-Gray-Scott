@@ -127,13 +127,13 @@ def homogeneous_state(a: float, m: float):
     """
     Returns the homogeneous stationary state ``(u*, v*)``.
 
-    Returns
+    Parameters
     a : float
         Water input parameter.
     m : float
         Mortality parameter.
 
-    Zwraca
+    Returns
     tuple[float, float]
         Homogeneous equilibrium state of the reaction system.
     """
@@ -220,7 +220,7 @@ def D2(n: int) -> np.ndarray:
     n : int
         Matrix size.
 
-    Zwraca
+    Returns
     scipy.sparse.csr_matrix
         Sparse ``n x n`` matrix approximating ``d²/dx²``.
     """
@@ -243,7 +243,7 @@ def laplacian2D(nx: int, ny: int, h: float):
     h : float
         Grid spacing, assuming ``hx = hy``.
 
-    Zwraca
+    Returns
     scipy.sparse.csr_matrix
         Sparse matrix of shape ``(nx * ny, nx * ny)``
         representing the discrete 2D Laplacian.
