@@ -18,7 +18,7 @@ from catboost import CatBoostClassifier
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from collections import Counter
 import warnings
 warnings.filterwarnings('ignore')
@@ -27,73 +27,117 @@ warnings.filterwarnings('ignore')
 # KROK 1: TWORZENIE SYNTETYCZNEGO DATASETU (imituje Wasze dane)
 # ============================================================
 
-def generate_synthetic_data(n_samples=1000):
+
+#def generate_synthetic_data(n_samples=1000):
     """
     Tworzy przykładowy dataset:
     X: parametry modelu [a, m, d1, d2]
     y: etykieta wzoru (0-pustynia, 1-pasy, 2-plamy, 3-labirynt)
     """
-    np.random.seed(42)
+ #   np.random.seed(42)
     
     # Losuj parametry w sensownych zakresach (dostosujcie do Waszego modelu)
-    a = np.random.uniform(0, 4, n_samples)      # opady
-    m = np.random.uniform(0.1, 1.0, n_samples)  # śmiertelność
-    d1 = np.random.uniform(0.1, 2.0, n_samples) # dyfuzja wody
-    d2 = np.random.uniform(0.01, 0.5, n_samples) # dyfuzja biomasy
+  #  a = np.random.uniform(0, 4, n_samples)      # opady
+   # m = np.random.uniform(0.1, 1.0, n_samples)  # śmiertelność
+    #d1 = np.random.uniform(0.1, 2.0, n_samples) # dyfuzja wody
+    #d2 = np.random.uniform(0.01, 0.5, n_samples) # dyfuzja biomasy
     
-    X = np.column_stack([a, m, d1, d2])
+    #X = np.column_stack([a, m, d1, d2])
     
     # Tworzymy etykiety na podstawie parametrów (to zastąpią Wasze rzeczywiste symulacje!)
     # To jest TYLKO przykład - wy musicie wczytać rzeczywiste wyniki symulacji
-    y = np.zeros(n_samples, dtype=int)
+   # y = np.zeros(n_samples, dtype=int)
     
-    for i in range(n_samples):
+    #for i in range(n_samples):
         # Prosta reguła do generowania etykiet (TYLKO PRZYKŁAD!)
-        if a[i] < 1.0:
-            y[i] = 0  # pustynia
-        elif a[i] < 2.0:
-            if d2[i] < 0.1:
-                y[i] = 1  # pasy
-            else:
-                y[i] = 2  # plamy
-        else:
-            if m[i] < 0.5:
-                y[i] = 3  # labirynt
-            else:
-                y[i] = 1  # pasy
+     #   if a[i] < 1.0:
+      #      y[i] = 0  # pustynia
+       # elif a[i] < 2.0:
+        #    if d2[i] < 0.1:
+         #       y[i] = 1  # pasy
+          #  else:
+           #     y[i] = 2  # plamy
+        #else:
+         #   if m[i] < 0.5:
+          #      y[i] = 3  # labirynt
+           # else:
+            #    y[i] = 1  # pasy
     
-    return X, y
+    #return X, y
 
+###
 # ============================================================
 # KROK 2: WCZYTANIE RZECZYWISTYCH DANYCH (to użyjecie!)
 # ============================================================
 
 def load_your_simulation_data(csv_file):
     """
-    Wczytuje Wasze dane z symulacji.
-    Zakładam, że macie plik CSV z kolumnami:
-    a, m, d1, d2, pattern_type
-    
-    pattern_type to etykieta: 'pustynia', 'pasy', 'plamy', 'labirynt', itd.
+    Wczytuje dane z symulacji i remapuje klasy do ciągłych wartości.
     """
     df = pd.read_csv(csv_file)
     
-    # Kolumny z parametrami
+    # Diagnostyka
+    print(f"Dostępne kolumny w CSV: {df.columns.tolist()}")
+    print(f"Unikalne wartości w kolumnie 'pattern': {sorted(df['pattern'].unique())}")
+    
+    # Wybierz parametry
     X = df[['a', 'm', 'd1', 'd2']].values
     
-    # Mapowanie nazw kategorii na liczby
-    pattern_types = df['pattern_type'].unique()
-    type_to_int = {name: i for i, name in enumerate(pattern_types)}
-    y = df['pattern_type'].map(type_to_int).values
+    # Orginalne etykiety
+    y_original = df['pattern'].values.astype(int)
     
-    return X, y, pattern_types
+    # REMAPOWANIE KLAS - to kluczowa zmiana!
+    original_classes = np.unique(y_original)
+    class_mapping = {old: new for new, old in enumerate(sorted(original_classes))}
+    y = np.array([class_mapping[val] for val in y_original])
+    
+    # Mapowanie nazw (zachowując kolejność)
+    pattern_mapping = {
+        0: 'pustynia_las',
+        1: 'plamy', 
+        3: 'labirynty',
+        4: 'dziury', 
+        5: 'inne'
+    }
+    
+    # Nazwy klas w nowej kolejności
+    class_names = []
+    for old_class in sorted(original_classes):
+        if old_class in pattern_mapping:
+            class_names.append(pattern_mapping[old_class])
+        else:
+            class_names.append(f'wzor_{old_class}')
+    class_names = np.array(class_names)
+    
+    # Wyświetl informacje o mapowaniu
+    print("\n--- MAPOWANIE KLAS ---")
+    for old, new in class_mapping.items():
+        print(f"Orginalna klasa {old} ({pattern_mapping.get(old, '?')}) -> nowa klasa {new}")
+    
+    print("\n--- PODSUMOWANIE DANYCH ---")
+    print(f"Liczba próbek: {len(X)}")
+    print(f"Liczba parametrów: {X.shape[1]}")
+    print(f"Liczba klas: {len(class_names)}")
+    print(f"Nowe wartości klas: {np.unique(y)}")
+    
+    print("\nRozkład klas:")
+    for i, (old_class, name) in enumerate(zip(sorted(original_classes), class_names)):
+        count = np.sum(y == i)
+        percentage = (count / len(y)) * 100
+        print(f"  Klasa {i} ({name}, org: {old_class}): {count} próbek ({percentage:.1f}%)")
+    
+    return X, y, class_names
 
 # ============================================================
 # KROK 3: GŁÓWNY PIPELINE MODELU 1
 # ============================================================
 
-def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=True, 
-                                verbose=True, scale_data=True):
+# ============================================================
+# ZMIENIONA FUNKCJA train_classification_model z obsługą BorderlineSMOTE
+# ============================================================
+
+def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=False, 
+                                smote_type='standard', verbose=True, scale_data=True):
     """
     Trenuje model klasyfikacji z ogromną liczbą dostępnych modeli!
     
@@ -104,6 +148,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     class_names : list - nazwy klas
     model_type : str - typ modelu (lista dostępnych poniżej)
     use_smote : bool - czy użyć SMOTE do balansowania
+    smote_type : str - typ SMOTE ('standard', 'borderline1', 'borderline2')
     verbose : bool - czy wypisywać szczegóły
     scale_data : bool - czy skalować dane (dla modeli liniowych)
     
@@ -136,14 +181,24 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     )
     
     # ============================================================
-    # SMOTE - BALANSOWANIE DANYCH
+    # SMOTE / BORDERLINESMOTE - BALANSOWANIE DANYCH
     # ============================================================
     if use_smote:
         if verbose:
-            print("\n--- Stosuję SMOTE do balansowania klas ---")
+            print(f"\n--- Stosuję {smote_type.upper()} do balansowania klas ---")
             print(f"Rozkład przed SMOTE: {Counter(y_train)}")
         
-        smote = SMOTE(random_state=42)
+        # Wybór typu SMOTE
+        if smote_type == 'standard':
+            smote = SMOTE(random_state=42)
+        elif smote_type == 'borderline1':
+            smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
+        elif smote_type == 'borderline2':
+            smote = BorderlineSMOTE(random_state=42, kind='borderline-2')
+        else:
+            print(f"Nieznany typ SMOTE: {smote_type}, używam standardowego")
+            smote = SMOTE(random_state=42)
+        
         X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
         
         if verbose:
@@ -156,6 +211,9 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     else:
         X_train_to_use = X_train
         y_train_to_use = y_train
+    
+    # Reszta funkcji bez zmian (skalowanie, wybór modelu, trenowanie, ewaluacja)
+    # ... (cała dalsza część pozostaje taka sama jak w Twoim kodzie)
     
     # ============================================================
     # SKALOWANIE (dla modeli wrażliwych na skalę)
@@ -177,13 +235,12 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     else:
         X_train_scaled = X_train_to_use
         X_test_scaled = X_test
-        # WAŻNE: Trenujemy scaler, żeby działał dla nowych danych!
-        scaler.fit(X_train_to_use)  # <--- DODAJ TĘ JEDNĄ LINIĘ!
+        scaler.fit(X_train_to_use)
         if verbose and model_type in no_scaling_models:
             print("\n--- Skalowanie pominięte (model odporny na skalę) ---")
     
     # ============================================================
-    # WYBÓR MODELU
+    # WYBÓR MODELU (TA SAMA CZĘŚĆ CO WCZEŚNIEJ)
     # ============================================================
     
     if verbose:
@@ -210,7 +267,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             class_weight='balanced' if not use_smote else None
         )
     
-    # ---- 3. XGBOOST (bardzo popularny, często najlepszy) ----
+    # ---- 3. XGBOOST ----
     elif model_type == 'xgboost':
         model = XGBClassifier(
             n_estimators=200, max_depth=6, learning_rate=0.1,
@@ -219,7 +276,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             n_jobs=-1
         )
     
-    # ---- 4. LIGHTGBM (szybszy od XGBoost) ----
+    # ---- 4. LIGHTGBM ----
     elif model_type == 'lightgbm':
         model = LGBMClassifier(
             n_estimators=200, max_depth=6, learning_rate=0.1,
@@ -227,7 +284,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             random_state=42, n_jobs=-1, verbose=-1
         )
     
-    # ---- 5. CATBOOST (dobry dla danych kategorycznych) ----
+    # ---- 5. CATBOOST ----
     elif model_type == 'catboost':
         try:
             model = CatBoostClassifier(
@@ -246,7 +303,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             min_samples_split=5, min_samples_leaf=2, random_state=42
         )
     
-    # ---- 7. SVM (Support Vector Machine) ----
+    # ---- 7. SVM ----
     elif model_type == 'svm':
         model = SVC(
             kernel='rbf', C=1.0, gamma='scale', probability=True,
@@ -254,7 +311,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             random_state=42
         )
     
-    # ---- 8. KNN (K-Nearest Neighbors) ----
+    # ---- 8. KNN ----
     elif model_type == 'knn':
         model = KNeighborsClassifier(
             n_neighbors=5, weights='distance', metric='minkowski'
@@ -272,7 +329,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     elif model_type == 'naive_bayes':
         model = GaussianNB()
     
-    # ---- 11. SIEĆ NEURONOWA (MLP) ----
+    # ---- 11. SIEĆ NEURONOWA ----
     elif model_type == 'neural_network':
         model = MLPClassifier(
             hidden_layer_sizes=(100, 50), activation='relu',
@@ -280,11 +337,11 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             early_stopping=True
         )
     
-    # ---- 12. LDA (Liniowa Analiza Dyskryminacyjna) ----
+    # ---- 12. LDA ----
     elif model_type == 'lda':
         model = LinearDiscriminantAnalysis()
     
-    # ---- 13. QDA (Kwadratowa Analiza Dyskryminacyjna) ----
+    # ---- 13. QDA ----
     elif model_type == 'qda':
         model = QuadraticDiscriminantAnalysis()
     
@@ -294,7 +351,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
             n_estimators=200, learning_rate=0.1, random_state=42
         )
     
-    # ---- 15. EXTRA TREES (Extremely Randomized Trees) ----
+    # ---- 15. EXTRA TREES ----
     elif model_type == 'extra_trees':
         model = ExtraTreesClassifier(
             n_estimators=200, max_depth=15, min_samples_split=5,
@@ -312,11 +369,7 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
         model = OneVsRestClassifier(base_model)
     
     else:
-        raise ValueError(f"Nieznany typ modelu: {model_type}\n"
-                         f"Dostępne: logistic, random_forest, xgboost, lightgbm, catboost, "
-                         f"gradient_boosting, svm, knn, decision_tree, naive_bayes, "
-                         f"neural_network, lda, qda, adaboost, extra_trees, "
-                         f"one_vs_rest_rf, one_vs_rest_svm")
+        raise ValueError(f"Nieznany typ modelu: {model_type}")
     
     # ============================================================
     # TRENOWANIE
@@ -336,7 +389,6 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     # ============================================================
     y_pred = model.predict(X_test_scaled)
     
-    # Sprawdź czy model ma predict_proba
     if hasattr(model, 'predict_proba'):
         y_pred_proba = model.predict_proba(X_test_scaled)
     else:
@@ -354,10 +406,14 @@ def train_classification_model(X, y, class_names, model_type='random_forest', us
     
     return model, scaler, X_test_scaled, y_test, y_pred_proba
 
-# Funkcja do testowania wszystkich modeli
-def test_all_models(X, y, class_names, use_smote=True):
+
+# ============================================================
+# NOWA FUNKCJA DO TESTOWANIA WSZYSTKICH MODELI Z RÓŻNYMI TYPAMI SMOTE
+# ============================================================
+
+def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard', 'borderline1', 'borderline2']):
     """
-    Testuje wszystkie dostępne modele i pokazuje wyniki
+    Testuje wszystkie modele dla różnych typów SMOTE i znajduje najlepszą kombinację
     """
     models_to_test = [
         'logistic',
@@ -376,58 +432,65 @@ def test_all_models(X, y, class_names, use_smote=True):
         'extra_trees'
     ]
     
-    results = []
+    all_results = []
     
     print("=" * 80)
-    print("TESTOWANIE WSZYSTKICH MODELI")
+    print("TESTOWANIE WSZYSTKICH MODELI Z RÓŻNYMI TYPAMI SMOTE")
     print("=" * 80)
     
-    for model_type in models_to_test:
-        print("\n" + "-" * 60)
-        print(f"Testuję: {model_type.upper()}")
-        print("-" * 60)
-        
-        try:
-            model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
-                X, y, class_names, 
-                model_type=model_type, 
-                use_smote=use_smote,
-                verbose=True  # pokazuje wyniki
-            )
-            
-            # Zapisz wynik
-            if model is not None:
-                y_pred = model.predict(X_test)
-                accuracy = np.mean(y_pred == y_test)
-                results.append({
-                    'model': model_type,
-                    'accuracy': accuracy,
-                    'model_obj': model
-                })
-        
-        except Exception as e:
-            print(f"Błąd dla {model_type}: {e}")
-            continue
-    
-    # Podsumowanie
-    print("\n" + "=" * 80)
-    print("PODSUMOWANIE WSZYSTKICH MODELI")
-    print("=" * 80)
-    print(f"{'Model':<20} {'Dokładność':<10}")
-    print("-" * 30)
-    
-    for r in sorted(results, key=lambda x: x['accuracy'], reverse=True):
-        print(f"{r['model']:<20} {r['accuracy']:.4f}")
-    
-    # Najlepszy model
-    if results:
-        best = max(results, key=lambda x: x['accuracy'])
+    for smote_type in smote_types:
         print("\n" + "=" * 80)
-        print(f"🏆 NAJLEPSZY MODEL: {best['model']} z dokładnością {best['accuracy']:.4f}")
+        print(f"📊 TESTOWANIE Z SMOTE TYP: {smote_type.upper()}")
         print("=" * 80)
-        return best['model_obj'], best['model']
+        
+        for model_type in models_to_test:
+            print("\n" + "-" * 60)
+            print(f"Testuję: {model_type.upper()} z {smote_type.upper()}")
+            print("-" * 60)
+            
+            try:
+                model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
+                    X, y, class_names, 
+                    model_type=model_type, 
+                    use_smote=False,
+                    smote_type=smote_type,
+                    verbose=True
+                )
+                
+                if model is not None:
+                    y_pred = model.predict(X_test)
+                    accuracy = np.mean(y_pred == y_test)
+                    all_results.append({
+                        'model': model_type,
+                        'smote_type': smote_type,
+                        'accuracy': accuracy,
+                        'model_obj': model
+                    })
+            
+            except Exception as e:
+                print(f"Błąd dla {model_type} z {smote_type}: {e}")
+                continue
     
-    return None, None
+    # Podsumowanie wszystkich wyników
+    print("\n" + "=" * 80)
+    print("🏆 PODSUMOWANIE WSZYSTKICH KOMBINACJI")
+    print("=" * 80)
+    print(f"{'Model':<20} {'SMOTE Type':<15} {'Dokładność':<10}")
+    print("-" * 50)
+    
+    for r in sorted(all_results, key=lambda x: x['accuracy'], reverse=True):
+        print(f"{r['model']:<20} {r['smote_type']:<15} {r['accuracy']:.4f}")
+    
+    # Najlepsza kombinacja
+    if all_results:
+        best = max(all_results, key=lambda x: x['accuracy'])
+        print("\n" + "=" * 80)
+        print(f"🏆 NAJLEPSZA KOMBINACJA: {best['model'].upper()} z {best['smote_type'].upper()}")
+        print(f"   Dokładność: {best['accuracy']:.4f}")
+        print("=" * 80)
+        return best['model_obj'], best['model'], best['smote_type']
+    
+    return None, None, None
 
 # ============================================================
 # KROK 4: PRZYKŁAD UŻYCIA
@@ -435,15 +498,14 @@ def test_all_models(X, y, class_names, use_smote=True):
 
 # Opcja A: Użycie syntetycznych danych (dla testu)
 print("=== MODEL 1: KLASYFIKATOR PARAMETRÓW ===\n")
-X, y = generate_synthetic_data(n_samples=1000)
-class_names = np.array(['pustynia', 'pasy', 'plamy', 'labirynt'])
+#X, y = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all.csv")
+#class_names = np.array(['pustynia_las', 'plamy', 'labirynt', 'inne', 'dziury'])
 
 # Opcja B: Wczytanie rzeczywistych danych (ODKOMENTUJ)
-# X, y, class_names = load_your_simulation_data('wasze_dane.csv')
+X, y, class_names = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all.csv")
 
 print(f"Dane: {X.shape[0]} próbek, {X.shape[1]} parametry")
 print(f"Klasy: {class_names}")
-print(f"Rozkład klas: {np.bincount(y)}")
 
 """
 # Trenuj model regresji logistycznej (Twój wybór!)
@@ -457,59 +519,77 @@ model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
 )
 """
 
-# Przetestuj wszystkie modele
-best_model, best_name = test_all_models(X, y, class_names, use_smote=True)
-
-# Wytrenuj najlepszy model, żeby mieć dane testowe
-model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
-    X, y, class_names, model_type=best_name, use_smote=True, verbose=True
-)
+# Opcja 3: Testuj wszystkie kombinacje (modele x typy SMOTE) - NAJLEPSZA OPCJA!
+best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names)
 
 # ============================================================
-# KROK 5: ANALIZA WYNIKÓW
+# TRENOWANIE FINALNEGO MODELU NA WSZYSTKICH DANYCH
 # ============================================================
 
-# 1. Pokaż przykład predykcji z prawdopodobieństwami
-print("\n=== PRZYKŁADOWE PREDYKCJE ===")
-for i in range(5):
-    print(f"\nPróbka {i+1}:")
-    print(f"  Prawdziwa klasa: {class_names[y_test[i]]}")
-    print(f"  Przewidywana klasa: {class_names[model.predict(X_test[i:i+1])[0]]}")
-    print("  Prawdopodobieństwa:")
-    probs = model.predict_proba(X_test[i:i+1])[0]
-    for name, prob in zip(class_names, probs):
-        print(f"    {name}: {prob:.3f}")
+# Wybieramy najlepszy model (z test_all_models_with_smote_types)
+best_model_name = best_name  # np. 'extra_trees'
 
-# 2. Macierz pomyłek
-plt.figure(figsize=(8, 6))
-cm = confusion_matrix(y_test, model.predict(X_test))
-sns.heatmap(cm, annot=True, fmt='d', xticklabels=class_names, yticklabels=class_names)
-plt.title('Macierz pomyłek - Model 1')
-plt.ylabel('Prawdziwa klasa')
-plt.xlabel('Przewidywana klasa')
-plt.tight_layout()
-plt.show()
+print("\n" + "=" * 80)
+print(f"🔥 TRENOWANIE FINALNEGO MODELU: {best_model_name.upper()}")
+print("=" * 80)
 
-# 3. Dla regresji logistycznej: współczynniki (które parametry są ważne)
-if isinstance(model, LogisticRegression):
-    plt.figure(figsize=(10, 6))
-    coef = model.coef_
-    for i, class_name in enumerate(class_names):
-        plt.plot(coef[i], 'o-', label=class_name, markersize=8)
-    plt.xticks(range(4), ['a (opady)', 'm (śmiertelność)', 'd1 (dyfuzja wody)', 'd2 (dyfuzja biomasy)'])
-    plt.xlabel('Parametr')
-    plt.ylabel('Wartość współczynnika')
-    plt.title('Współczynniki regresji logistycznej dla każdej klasy')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-    
-    print("\n=== INTERPRETACJA WSPÓŁCZYNNIKÓW ===")
-    for i, class_name in enumerate(class_names):
-        print(f"\nKlasa {class_name}:")
-        for j, param in enumerate(['a', 'm', 'd1', 'd2']):
-            print(f"  {param}: {coef[i][j]:+.3f}")
+# Stwórz model ręcznie (bez podziału danych!)
+if best_model_name == 'extra_trees':
+    final_model = ExtraTreesClassifier(
+        n_estimators=200, max_depth=15, min_samples_split=5,
+        random_state=42, n_jobs=-1
+    )
+elif best_model_name == 'random_forest':
+    final_model = RandomForestClassifier(
+        n_estimators=200, max_depth=15, min_samples_split=5,
+        random_state=42, n_jobs=-1
+    )
+elif best_model_name == 'xgboost':
+    final_model = XGBClassifier(
+        n_estimators=200, max_depth=6, learning_rate=0.1,
+        random_state=42, n_jobs=-1, use_label_encoder=False, eval_metric='mlogloss'
+    )
+elif best_model_name == 'lightgbm':
+    final_model = LGBMClassifier(
+        n_estimators=200, max_depth=6, random_state=42, n_jobs=-1, verbose=-1
+    )
+elif best_model_name == 'knn':
+    final_model = KNeighborsClassifier(n_neighbors=5, weights='distance')
+elif best_model_name == 'gradient_boosting':
+    final_model = GradientBoostingClassifier(
+        n_estimators=200, max_depth=5, learning_rate=0.1, random_state=42
+    )
+elif best_model_name == 'decision_tree':
+    final_model = DecisionTreeClassifier(max_depth=10, min_samples_split=5, random_state=42)
+else:
+    final_model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
+
+# Trenuj na WSZYSTKICH danych - NIE MA PODZIAŁU!
+print(f"\n📊 Trenuję na {len(X)} próbkach (100% danych)...")
+final_model.fit(X, y)
+
+print("✅ Finalny model wytrenowany pomyślnie!")
+
+# Skaler (dla zgodności)
+scaler = StandardScaler()
+scaler.fit(X)
+
+# To jest Wasz finalny model
+model = final_model
+
+# ============================================================
+# KROK 5: POMIJAMY - NIE MA PODZIAŁU WIĘC NIE MA X_test
+# ============================================================
+
+print("\n" + "=" * 80)
+print("✅ MODEL WYTRENOWANY NA WSZYSTKICH DANYCH")
+print("=" * 80)
+print(f"Model: {best_model_name.upper()}")
+print(f"Liczba próbek treningowych: {len(X)}")
+print(f"Liczba klas: {len(class_names)}")
+print("\nModel gotowy do generowania danych!")
+
+# Pomijamy wykresy i analizy które potrzebują X_test
 
 # ============================================================
 # KROK 6: ZAPIS MODELU DO UŻYCIA W MODELU 2
