@@ -21,6 +21,7 @@ import joblib
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from collections import Counter
 import warnings
+from sklearn.model_selection import cross_val_score, StratifiedKFold
 warnings.filterwarnings('ignore')
 
 # ============================================================
@@ -132,288 +133,261 @@ def load_your_simulation_data(csv_file):
 # KROK 3: GŁÓWNY PIPELINE MODELU 1
 # ============================================================
 
-# ============================================================
-# ZMIENIONA FUNKCJA train_classification_model z obsługą BorderlineSMOTE
-# ============================================================
-
-def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=False, 
-                                smote_type='standard', verbose=True, scale_data=True):
+def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=False, # TU JESZCZE ZMIENIA SIE SMOTE JAK SIE CHCE GO WYLACZYC
+                                smote_type='standard', verbose=True, scale_data=True, 
+                                use_cv=False, cv_folds=5):
     """
-    Trenuje model klasyfikacji z ogromną liczbą dostępnych modeli!
+    Trenuje model klasyfikacji.
+    
+    NOWOŚĆ: Jeśli use_cv=True, używa cross-validation zamiast pojedynczego podziału.
     
     PARAMETRY:
     ----------
-    X : numpy array - cechy (parametry)
-    y : numpy array - etykiety (wzory)
-    class_names : list - nazwy klas
-    model_type : str - typ modelu (lista dostępnych poniżej)
-    use_smote : bool - czy użyć SMOTE do balansowania
-    smote_type : str - typ SMOTE ('standard', 'borderline1', 'borderline2')
-    verbose : bool - czy wypisywać szczegóły
-    scale_data : bool - czy skalować dane (dla modeli liniowych)
-    
-    DOSTĘPNE MODELE:
-    ----------------
-    'logistic'           - Regresja logistyczna
-    'random_forest'      - Random Forest (domyślny)
-    'xgboost'            - XGBoost (bardzo popularny)
-    'lightgbm'           - LightGBM (szybki)
-    'catboost'           - CatBoost (dobry dla kategorycznych)
-    'gradient_boosting'  - Gradient Boosting
-    'svm'                - Support Vector Machine
-    'knn'                - K-Nearest Neighbors
-    'decision_tree'      - Drzewo decyzyjne
-    'naive_bayes'        - Naiwny Bayes
-    'neural_network'     - Sieć neuronowa (MLP)
-    'lda'                - Liniowa Analiza Dyskryminacyjna
-    'qda'                - Kwadratowa Analiza Dyskryminacyjna
-    'adaboost'           - AdaBoost
-    'extra_trees'        - Extremely Randomized Trees
-    'one_vs_rest_rf'     - OneVsRest z Random Forest
-    'one_vs_rest_svm'    - OneVsRest z SVM
+    use_cv : bool - czy użyć cross-validation (True = cross-validation, False = pojedynczy podział)
+    cv_folds : int - liczba foldów dla cross-validation (domyślnie 5)
     """
     
     # ============================================================
-    # PODZIAŁ DANYCH
+    # CROSS-VALIDATION (NOWOŚĆ!)
     # ============================================================
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
-    )
-    
-    # ============================================================
-    # SMOTE / BORDERLINESMOTE - BALANSOWANIE DANYCH
-    # ============================================================
-    if use_smote:
+    if use_cv:
         if verbose:
-            print(f"\n--- Stosuję {smote_type.upper()} do balansowania klas ---")
-            print(f"Rozkład przed SMOTE: {Counter(y_train)}")
+            print(f"\n--- UŻYWAM {cv_folds}-FOLD CROSS-VALIDATION (zamiast pojedynczego podziału) ---")
+            print(f"   Model: {model_type}")
+            if use_smote:
+                print(f"   SMOTE: {smote_type}")
         
-        # Wybór typu SMOTE
-        if smote_type == 'standard':
-            smote = SMOTE(random_state=42)
-        elif smote_type == 'borderline1':
-            smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
-        elif smote_type == 'borderline2':
-            smote = BorderlineSMOTE(random_state=42, kind='borderline-2')
+        # Przygotuj bazowy model
+        if model_type == 'logistic':
+            base_model = LogisticRegression(solver='lbfgs', max_iter=2000, random_state=42, class_weight='balanced' if not use_smote else None)
+        elif model_type == 'random_forest':
+            base_model = RandomForestClassifier(n_estimators=200, max_depth=15, min_samples_split=5, min_samples_leaf=2, random_state=42, n_jobs=-1, class_weight='balanced' if not use_smote else None)
+        elif model_type == 'xgboost':
+            base_model = XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, subsample=0.8, colsample_bytree=0.8, random_state=42, use_label_encoder=False, eval_metric='mlogloss', n_jobs=-1)
+        elif model_type == 'lightgbm':
+            base_model = LGBMClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, num_leaves=31, subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1, verbose=-1)
+        elif model_type == 'catboost':
+            try:
+                base_model = CatBoostClassifier(iterations=200, depth=6, learning_rate=0.1, random_state=42, verbose=False)
+            except:
+                base_model = RandomForestClassifier(n_estimators=100, random_state=42)
+        elif model_type == 'gradient_boosting':
+            base_model = GradientBoostingClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, min_samples_split=5, min_samples_leaf=2, random_state=42)
+        elif model_type == 'svm':
+            base_model = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True, class_weight='balanced' if not use_smote else None, random_state=42)
+        elif model_type == 'knn':
+            base_model = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='minkowski')
+        elif model_type == 'decision_tree':
+            base_model = DecisionTreeClassifier(max_depth=10, min_samples_split=5, min_samples_leaf=2, class_weight='balanced' if not use_smote else None, random_state=42)
+        elif model_type == 'naive_bayes':
+            base_model = GaussianNB()
+        elif model_type == 'neural_network':
+            base_model = MLPClassifier(hidden_layer_sizes=(100, 50), activation='relu', solver='adam', max_iter=1000, random_state=42, early_stopping=True)
+        elif model_type == 'lda':
+            base_model = LinearDiscriminantAnalysis()
+        elif model_type == 'qda':
+            base_model = QuadraticDiscriminantAnalysis()
+        elif model_type == 'adaboost':
+            base_model = AdaBoostClassifier(n_estimators=200, learning_rate=0.1, random_state=42)
+        elif model_type == 'extra_trees':
+            base_model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
+        elif model_type == 'one_vs_rest_rf':
+            base_model = OneVsRestClassifier(RandomForestClassifier(n_estimators=100, random_state=42))
+        elif model_type == 'one_vs_rest_svm':
+            base_model = OneVsRestClassifier(SVC(kernel='rbf', C=1.0, probability=True, random_state=42))
         else:
-            print(f"Nieznany typ SMOTE: {smote_type}, używam standardowego")
-            smote = SMOTE(random_state=42)
+            raise ValueError(f"Nieznany typ modelu: {model_type}")
         
-        X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+        # Skaler (jeśli potrzebny)
+        scaler = StandardScaler()
+        no_scaling_models = ['random_forest', 'xgboost', 'lightgbm', 'catboost', 'gradient_boosting', 'decision_tree', 'extra_trees', 'adaboost', 'naive_bayes']
         
-        if verbose:
-            print(f"Rozkład po SMOTE: {Counter(y_train_balanced)}")
-            print(f"Liczba próbek przed SMOTE: {len(X_train)}")
-            print(f"Liczba próbek po SMOTE: {len(X_train_balanced)}")
+        # Stwórz pipeline z lub bez skalowania
+        if scale_data and model_type not in no_scaling_models:
+            model = Pipeline([
+                ('scaler', scaler),
+                ('classifier', base_model)
+            ])
+        else:
+            model = base_model
         
-        X_train_to_use = X_train_balanced
-        y_train_to_use = y_train_balanced
-    else:
-        X_train_to_use = X_train
-        y_train_to_use = y_train
-    
-    # Reszta funkcji bez zmian (skalowanie, wybór modelu, trenowanie, ewaluacja)
-    # ... (cała dalsza część pozostaje taka sama jak w Twoim kodzie)
-    
-    # ============================================================
-    # SKALOWANIE (dla modeli wrażliwych na skalę)
-    # ============================================================
-    scaler = StandardScaler()
-    
-    # Modele, które NIE potrzebują skalowania
-    no_scaling_models = [
-        'random_forest', 'xgboost', 'lightgbm', 'catboost', 
-        'gradient_boosting', 'decision_tree', 'extra_trees',
-        'adaboost', 'naive_bayes'
-    ]
-    
-    if scale_data and model_type not in no_scaling_models:
-        X_train_scaled = scaler.fit_transform(X_train_to_use)
-        X_test_scaled = scaler.transform(X_test)
-        if verbose:
-            print("\n--- Dane zostały przeskalowane ---")
-    else:
-        X_train_scaled = X_train_to_use
-        X_test_scaled = X_test
-        scaler.fit(X_train_to_use)
-        if verbose and model_type in no_scaling_models:
-            print("\n--- Skalowanie pominięte (model odporny na skalę) ---")
-    
-    # ============================================================
-    # WYBÓR MODELU (TA SAMA CZĘŚĆ CO WCZEŚNIEJ)
-    # ============================================================
-    
-    if verbose:
-        print(f"\n--- Tworzę model: {model_type} ---")
-    
-    # ---- 1. REGRESJA LOGISTYCZNA ----
-    if model_type == 'logistic':
+        # Obsługa SMOTE w pipeline
         if use_smote:
-            model = LogisticRegression(
-                solver='lbfgs', max_iter=2000, random_state=42,
-                class_weight=None
-            )
-        else:
-            model = LogisticRegression(
-                solver='lbfgs', max_iter=2000, random_state=42,
-                class_weight='balanced'
-            )
-    
-    # ---- 2. RANDOM FOREST ----
-    elif model_type == 'random_forest':
-        model = RandomForestClassifier(
-            n_estimators=200, max_depth=15, min_samples_split=5,
-            min_samples_leaf=2, random_state=42, n_jobs=-1,
-            class_weight='balanced' if not use_smote else None
-        )
-    
-    # ---- 3. XGBOOST ----
-    elif model_type == 'xgboost':
-        model = XGBClassifier(
-            n_estimators=200, max_depth=6, learning_rate=0.1,
-            subsample=0.8, colsample_bytree=0.8, random_state=42,
-            use_label_encoder=False, eval_metric='mlogloss',
-            n_jobs=-1
-        )
-    
-    # ---- 4. LIGHTGBM ----
-    elif model_type == 'lightgbm':
-        model = LGBMClassifier(
-            n_estimators=200, max_depth=6, learning_rate=0.1,
-            num_leaves=31, subsample=0.8, colsample_bytree=0.8,
-            random_state=42, n_jobs=-1, verbose=-1
-        )
-    
-    # ---- 5. CATBOOST ----
-    elif model_type == 'catboost':
-        try:
-            model = CatBoostClassifier(
-                iterations=200, depth=6, learning_rate=0.1,
-                random_state=42, verbose=False
-            )
-        except:
-            print("CatBoost nie jest zainstalowany. Użyj: pip install catboost")
-            print("Zamiast tego używam Random Forest")
-            model = RandomForestClassifier(n_estimators=100, random_state=42)
-    
-    # ---- 6. GRADIENT BOOSTING ----
-    elif model_type == 'gradient_boosting':
-        model = GradientBoostingClassifier(
-            n_estimators=200, max_depth=5, learning_rate=0.1,
-            min_samples_split=5, min_samples_leaf=2, random_state=42
-        )
-    
-    # ---- 7. SVM ----
-    elif model_type == 'svm':
-        model = SVC(
-            kernel='rbf', C=1.0, gamma='scale', probability=True,
-            class_weight='balanced' if not use_smote else None,
-            random_state=42
-        )
-    
-    # ---- 8. KNN ----
-    elif model_type == 'knn':
-        model = KNeighborsClassifier(
-            n_neighbors=5, weights='distance', metric='minkowski'
-        )
-    
-    # ---- 9. DRZEWO DECYZYJNE ----
-    elif model_type == 'decision_tree':
-        model = DecisionTreeClassifier(
-            max_depth=10, min_samples_split=5, min_samples_leaf=2,
-            class_weight='balanced' if not use_smote else None,
-            random_state=42
-        )
-    
-    # ---- 10. NAIWNY BAYES ----
-    elif model_type == 'naive_bayes':
-        model = GaussianNB()
-    
-    # ---- 11. SIEĆ NEURONOWA ----
-    elif model_type == 'neural_network':
-        model = MLPClassifier(
-            hidden_layer_sizes=(100, 50), activation='relu',
-            solver='adam', max_iter=1000, random_state=42,
-            early_stopping=True
-        )
-    
-    # ---- 12. LDA ----
-    elif model_type == 'lda':
-        model = LinearDiscriminantAnalysis()
-    
-    # ---- 13. QDA ----
-    elif model_type == 'qda':
-        model = QuadraticDiscriminantAnalysis()
-    
-    # ---- 14. ADABOOST ----
-    elif model_type == 'adaboost':
-        model = AdaBoostClassifier(
-            n_estimators=200, learning_rate=0.1, random_state=42
-        )
-    
-    # ---- 15. EXTRA TREES ----
-    elif model_type == 'extra_trees':
-        model = ExtraTreesClassifier(
-            n_estimators=200, max_depth=15, min_samples_split=5,
-            random_state=42, n_jobs=-1
-        )
-    
-    # ---- 16. ONE VS REST z RANDOM FOREST ----
-    elif model_type == 'one_vs_rest_rf':
-        base_model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model = OneVsRestClassifier(base_model)
-    
-    # ---- 17. ONE VS REST z SVM ----
-    elif model_type == 'one_vs_rest_svm':
-        base_model = SVC(kernel='rbf', C=1.0, probability=True, random_state=42)
-        model = OneVsRestClassifier(base_model)
-    
-    else:
-        raise ValueError(f"Nieznany typ modelu: {model_type}")
-    
-    # ============================================================
-    # TRENOWANIE
-    # ============================================================
-    if verbose:
-        print(f"\n--- Trenuję model ---")
-    
-    try:
-        model.fit(X_train_scaled, y_train_to_use)
-    except Exception as e:
-        print(f"Błąd podczas trenowania {model_type}: {e}")
-        print("Spróbuj innego modelu lub sprawdź dane")
-        return None, None, None, None, None
-    
-    # ============================================================
-    # EWALUACJA
-    # ============================================================
-    y_pred = model.predict(X_test_scaled)
-    
-    if hasattr(model, 'predict_proba'):
-        y_pred_proba = model.predict_proba(X_test_scaled)
-    else:
-        y_pred_proba = None
+            if smote_type == 'standard':
+                smote = SMOTE(random_state=42)
+            elif smote_type == 'borderline1':
+                smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
+            elif smote_type == 'borderline2':
+                smote = BorderlineSMOTE(random_state=42, kind='borderline-2')
+            else:
+                smote = SMOTE(random_state=42)
+            
+            # Pipeline z SMOTE
+            if scale_data and model_type not in no_scaling_models:
+                model = ImbPipeline([
+                    ('scaler', scaler),
+                    ('smote', smote),
+                    ('classifier', base_model)
+                ])
+            else:
+                model = ImbPipeline([
+                    ('smote', smote),
+                    ('classifier', base_model)
+                ])
+        
+        # Wykonaj cross-validation
+        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        cv_scores = cross_val_score(model, X, y, cv=cv, scoring='accuracy')
+        
         if verbose:
-            print("Uwaga: Model nie obsługuje predict_proba")
+            print(f"\n📊 Wyniki {cv_folds}-fold cross-validation:")
+            for i, score in enumerate(cv_scores):
+                print(f"   Fold {i+1}: {score:.4f} ({score*100:.2f}%)")
+            print(f"\n📈 ŚREDNIA DOKŁADNOŚĆ: {cv_scores.mean():.4f} ({cv_scores.mean()*100:.2f}%)")
+            print(f"📉 Odchylenie standardowe: {cv_scores.std():.4f}")
+            print(f"🔍 Przedział ufności (95%): [{cv_scores.mean() - 2*cv_scores.std():.4f}, {cv_scores.mean() + 2*cv_scores.std():.4f}]")
+        
+        # Wytrenuj model na wszystkich danych (do zwrócenia)
+        model.fit(X, y)
+        
+        # Dla kompatybilności - zwracamy też fikcyjne X_test, y_test (None)
+        # oraz y_pred_proba (None), bo cross-validation nie ma pojedynczego testu
+        return model, scaler, None, None, None, cv_scores
     
-    accuracy = np.mean(y_pred == y_test)
-    
-    if verbose:
-        print(f"\n--- WYNIKI ---")
-        print(f"Dokładność: {accuracy:.4f}")
-        print("\nRaport klasyfikacji:")
-        print(classification_report(y_test, y_pred, target_names=class_names))
-    
-    return model, scaler, X_test_scaled, y_test, y_pred_proba
+    # ============================================================
+    # STARA METODA (POJEDYNCZY PODZIAŁ) - BEZ ZMIAN
+    # ============================================================
+    else:
+        if verbose:
+            print(f"\n--- UŻYWAM POJEDYNCZEGO PODZIAŁU TRAIN/TEST (75/25) ---")
+        
+        # PODZIAŁ DANYCH
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.25, random_state=42, stratify=y
+        )
+        
+        # SMOTE
+        if use_smote:
+            if verbose:
+                print(f"\n--- Stosuję {smote_type.upper()} do balansowania klas ---")
+                print(f"Rozkład przed SMOTE: {Counter(y_train)}")
+            
+            if smote_type == 'standard':
+                smote = SMOTE(random_state=42)
+            elif smote_type == 'borderline1':
+                smote = BorderlineSMOTE(random_state=42, kind='borderline-1')
+            elif smote_type == 'borderline2':
+                smote = BorderlineSMOTE(random_state=42, kind='borderline-2')
+            else:
+                smote = SMOTE(random_state=42)
+            
+            X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+            
+            if verbose:
+                print(f"Rozkład po SMOTE: {Counter(y_train_balanced)}")
+                print(f"Liczba próbek przed SMOTE: {len(X_train)}")
+                print(f"Liczba próbek po SMOTE: {len(X_train_balanced)}")
+            
+            X_train_to_use = X_train_balanced
+            y_train_to_use = y_train_balanced
+        else:
+            X_train_to_use = X_train
+            y_train_to_use = y_train
+        
+        # SKALOWANIE
+        scaler = StandardScaler()
+        no_scaling_models = ['random_forest', 'xgboost', 'lightgbm', 'catboost', 'gradient_boosting', 'decision_tree', 'extra_trees', 'adaboost', 'naive_bayes']
+        
+        if scale_data and model_type not in no_scaling_models:
+            X_train_scaled = scaler.fit_transform(X_train_to_use)
+            X_test_scaled = scaler.transform(X_test)
+            if verbose:
+                print("\n--- Dane zostały przeskalowane ---")
+        else:
+            X_train_scaled = X_train_to_use
+            X_test_scaled = X_test
+            scaler.fit(X_train_to_use)
+            if verbose and model_type in no_scaling_models:
+                print("\n--- Skalowanie pominięte (model odporny na skalę) ---")
+        
+        # WYBÓR MODELU
+        if verbose:
+            print(f"\n--- Tworzę model: {model_type} ---")
+        
+        if model_type == 'logistic':
+            model = LogisticRegression(solver='lbfgs', max_iter=2000, random_state=42, class_weight=None if use_smote else 'balanced')
+        elif model_type == 'random_forest':
+            model = RandomForestClassifier(n_estimators=200, max_depth=15, min_samples_split=5, min_samples_leaf=2, random_state=42, n_jobs=-1, class_weight='balanced' if not use_smote else None)
+        elif model_type == 'xgboost':
+            model = XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, subsample=0.8, colsample_bytree=0.8, random_state=42, use_label_encoder=False, eval_metric='mlogloss', n_jobs=-1)
+        elif model_type == 'lightgbm':
+            model = LGBMClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, num_leaves=31, subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1, verbose=-1)
+        elif model_type == 'catboost':
+            try:
+                model = CatBoostClassifier(iterations=200, depth=6, learning_rate=0.1, random_state=42, verbose=False)
+            except:
+                print("CatBoost nie jest zainstalowany. Używam Random Forest")
+                model = RandomForestClassifier(n_estimators=100, random_state=42)
+        elif model_type == 'gradient_boosting':
+            model = GradientBoostingClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, min_samples_split=5, min_samples_leaf=2, random_state=42)
+        elif model_type == 'svm':
+            model = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True, class_weight='balanced' if not use_smote else None, random_state=42)
+        elif model_type == 'knn':
+            model = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='minkowski')
+        elif model_type == 'decision_tree':
+            model = DecisionTreeClassifier(max_depth=10, min_samples_split=5, min_samples_leaf=2, class_weight='balanced' if not use_smote else None, random_state=42)
+        elif model_type == 'naive_bayes':
+            model = GaussianNB()
+        elif model_type == 'neural_network':
+            model = MLPClassifier(hidden_layer_sizes=(100, 50), activation='relu', solver='adam', max_iter=1000, random_state=42, early_stopping=True)
+        elif model_type == 'lda':
+            model = LinearDiscriminantAnalysis()
+        elif model_type == 'qda':
+            model = QuadraticDiscriminantAnalysis()
+        elif model_type == 'adaboost':
+            model = AdaBoostClassifier(n_estimators=200, learning_rate=0.1, random_state=42)
+        elif model_type == 'extra_trees':
+            model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
+        elif model_type == 'one_vs_rest_rf':
+            model = OneVsRestClassifier(RandomForestClassifier(n_estimators=100, random_state=42))
+        elif model_type == 'one_vs_rest_svm':
+            model = OneVsRestClassifier(SVC(kernel='rbf', C=1.0, probability=True, random_state=42))
+        else:
+            raise ValueError(f"Nieznany typ modelu: {model_type}")
+        
+        # TRENOWANIE
+        if verbose:
+            print(f"\n--- Trenuję model ---")
+        
+        try:
+            model.fit(X_train_scaled, y_train_to_use)
+        except Exception as e:
+            print(f"Błąd podczas trenowania {model_type}: {e}")
+            return None, None, None, None, None
+        
+        # EWALUACJA
+        y_pred = model.predict(X_test_scaled)
+        y_pred_proba = model.predict_proba(X_test_scaled) if hasattr(model, 'predict_proba') else None
+        accuracy = np.mean(y_pred == y_test)
+        
+        if verbose:
+            print(f"\n--- WYNIKI ---")
+            print(f"Dokładność: {accuracy:.4f}")
+            print("\nRaport klasyfikacji:")
+            print(classification_report(y_test, y_pred, target_names=class_names))
+        
+        return model, scaler, X_test_scaled, y_test, y_pred_proba
 
 
 # ============================================================
-# NOWA FUNKCJA DO TESTOWANIA WSZYSTKICH MODELI Z RÓŻNYMI TYPAMI SMOTE
+# ZMIENIONA FUNKCJA test_all_models_with_smote_types (DODANO CROSS-VALIDATION)
 # ============================================================
 
-def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard', 'borderline1', 'borderline2']):
+def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard', 'borderline1', 'borderline2'], use_cv=False, cv_folds=5):
     """
-    Testuje wszystkie modele dla różnych typów SMOTE i znajduje najlepszą kombinację
+    Testuje wszystkie modele dla różnych typów SMOTE.
+    
+    NOWOŚĆ: Jeśli use_cv=True, używa cross-validation zamiast pojedynczego podziału.
     """
     models_to_test = [
         'logistic',
@@ -435,7 +409,10 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
     all_results = []
     
     print("=" * 80)
-    print("TESTOWANIE WSZYSTKICH MODELI Z RÓŻNYMI TYPAMI SMOTE")
+    if use_cv:
+        print(f"TESTOWANIE WSZYSTKICH MODELI Z {cv_folds}-FOLD CROSS-VALIDATION")
+    else:
+        print("TESTOWANIE WSZYSTKICH MODELI Z POJEDYNCZYM PODZIAŁEM (75/25)")
     print("=" * 80)
     
     for smote_type in smote_types:
@@ -449,23 +426,48 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
             print("-" * 60)
             
             try:
-                model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
-                    X, y, class_names, 
-                    model_type=model_type, 
-                    use_smote=False,
-                    smote_type=smote_type,
-                    verbose=True
-                )
-                
-                if model is not None:
-                    y_pred = model.predict(X_test)
-                    accuracy = np.mean(y_pred == y_test)
-                    all_results.append({
-                        'model': model_type,
-                        'smote_type': smote_type,
-                        'accuracy': accuracy,
-                        'model_obj': model
-                    })
+                if use_cv:
+                    # Nowa wersja z cross-validation
+                    result = train_classification_model(
+                        X, y, class_names, 
+                        model_type=model_type, 
+                        use_smote=False,  # SMOTE obsłużone wewnątrz TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALA 
+                        smote_type=smote_type,
+                        verbose=True,
+                        use_cv=True,
+                        cv_folds=cv_folds
+                    )
+                    
+                    if result[0] is not None:
+                        model, scaler, _, _, _, cv_scores = result
+                        accuracy = cv_scores.mean()
+                        all_results.append({
+                            'model': model_type,
+                            'smote_type': smote_type,
+                            'accuracy': accuracy,
+                            'std': cv_scores.std(),
+                            'model_obj': model
+                        })
+                else:
+                    # Stara wersja z pojedynczym podziałem
+                    model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
+                        X, y, class_names, 
+                        model_type=model_type, 
+                        use_smote=False,
+                        smote_type=smote_type,
+                        verbose=True,
+                        use_cv=False
+                    )
+                    
+                    if model is not None:
+                        y_pred = model.predict(X_test)
+                        accuracy = np.mean(y_pred == y_test)
+                        all_results.append({
+                            'model': model_type,
+                            'smote_type': smote_type,
+                            'accuracy': accuracy,
+                            'model_obj': model
+                        })
             
             except Exception as e:
                 print(f"Błąd dla {model_type} z {smote_type}: {e}")
@@ -475,110 +477,93 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
     print("\n" + "=" * 80)
     print("🏆 PODSUMOWANIE WSZYSTKICH KOMBINACJI")
     print("=" * 80)
-    print(f"{'Model':<20} {'SMOTE Type':<15} {'Dokładność':<10}")
-    print("-" * 50)
-    
-    for r in sorted(all_results, key=lambda x: x['accuracy'], reverse=True):
-        print(f"{r['model']:<20} {r['smote_type']:<15} {r['accuracy']:.4f}")
+    if use_cv:
+        print(f"{'Model':<20} {'SMOTE Type':<15} {'Średnia':<12} {'Odchylenie'}")
+        print("-" * 65)
+        for r in sorted(all_results, key=lambda x: x['accuracy'], reverse=True):
+            print(f"{r['model']:<20} {r['smote_type']:<15} {r['accuracy']:.4f}     ±{r.get('std', 0):.4f}")
+    else:
+        print(f"{'Model':<20} {'SMOTE Type':<15} {'Dokładność':<10}")
+        print("-" * 50)
+        for r in sorted(all_results, key=lambda x: x['accuracy'], reverse=True):
+            print(f"{r['model']:<20} {r['smote_type']:<15} {r['accuracy']:.4f}")
     
     # Najlepsza kombinacja
     if all_results:
         best = max(all_results, key=lambda x: x['accuracy'])
         print("\n" + "=" * 80)
         print(f"🏆 NAJLEPSZA KOMBINACJA: {best['model'].upper()} z {best['smote_type'].upper()}")
-        print(f"   Dokładność: {best['accuracy']:.4f}")
+        print(f"   Dokładność: {best['accuracy']:.4f} ({best['accuracy']*100:.2f}%)")
+        if use_cv:
+            print(f"   Odchylenie: ±{best.get('std', 0):.4f}")
+            print(f"   Przedział ufności (95%): [{best['accuracy'] - 2*best.get('std', 0):.4f}, {best['accuracy'] + 2*best.get('std', 0):.4f}]")
         print("=" * 80)
         return best['model_obj'], best['model'], best['smote_type']
     
     return None, None, None
 
+
 # ============================================================
-# KROK 4: PRZYKŁAD UŻYCIA
+# KROK 3: GŁÓWNY PIPELINE
 # ============================================================
 
-# Opcja A: Użycie syntetycznych danych (dla testu)
 print("=== MODEL 1: KLASYFIKATOR PARAMETRÓW ===\n")
-#X, y = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all.csv")
-#class_names = np.array(['pustynia_las', 'plamy', 'labirynt', 'inne', 'dziury'])
 
-# Opcja B: Wczytanie rzeczywistych danych (ODKOMENTUJ)
+# Wczytanie danych
 X, y, class_names = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all.csv")
 
 print(f"Dane: {X.shape[0]} próbek, {X.shape[1]} parametry")
 print(f"Klasy: {class_names}")
 
-"""
-# Trenuj model regresji logistycznej (Twój wybór!)
-model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
-    X, y, class_names, model_type='logistic', use_smote = True
-)
+# ============================================================
+# TESTowanie modeli - MOŻESZ WYBRAĆ METODĘ:
+# ============================================================
 
-# Trenuj model random_forest (Twój wybór!)
-model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
-    X, y, class_names, model_type='random_forest', use_smote = True
-)
-"""
+# OPCJA 1: Stara metoda (pojedynczy podział 75/25) - BEZ ZMIAN
+# best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names, use_cv=False)
 
-# Opcja 3: Testuj wszystkie kombinacje (modele x typy SMOTE) - NAJLEPSZA OPCJA!
-best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names)
+# OPCJA 2: Nowa metoda z cross-validation (BARDZIEJ WIARYGODNA!)
+best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names, use_cv=True, cv_folds=5)
 
 # ============================================================
 # TRENOWANIE FINALNEGO MODELU NA WSZYSTKICH DANYCH
 # ============================================================
 
-# Wybieramy najlepszy model (z test_all_models_with_smote_types)
-best_model_name = best_name  # np. 'extra_trees'
+best_model_name = best_name
 
 print("\n" + "=" * 80)
 print(f"🔥 TRENOWANIE FINALNEGO MODELU: {best_model_name.upper()}")
 print("=" * 80)
 
-# Stwórz model ręcznie (bez podziału danych!)
 if best_model_name == 'extra_trees':
-    final_model = ExtraTreesClassifier(
-        n_estimators=200, max_depth=15, min_samples_split=5,
-        random_state=42, n_jobs=-1
-    )
+    final_model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
 elif best_model_name == 'random_forest':
-    final_model = RandomForestClassifier(
-        n_estimators=200, max_depth=15, min_samples_split=5,
-        random_state=42, n_jobs=-1
-    )
+    final_model = RandomForestClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
 elif best_model_name == 'xgboost':
-    final_model = XGBClassifier(
-        n_estimators=200, max_depth=6, learning_rate=0.1,
-        random_state=42, n_jobs=-1, use_label_encoder=False, eval_metric='mlogloss'
-    )
+    final_model = XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1, use_label_encoder=False, eval_metric='mlogloss')
 elif best_model_name == 'lightgbm':
-    final_model = LGBMClassifier(
-        n_estimators=200, max_depth=6, random_state=42, n_jobs=-1, verbose=-1
-    )
+    final_model = LGBMClassifier(n_estimators=200, max_depth=6, random_state=42, n_jobs=-1, verbose=-1)
 elif best_model_name == 'knn':
     final_model = KNeighborsClassifier(n_neighbors=5, weights='distance')
 elif best_model_name == 'gradient_boosting':
-    final_model = GradientBoostingClassifier(
-        n_estimators=200, max_depth=5, learning_rate=0.1, random_state=42
-    )
+    final_model = GradientBoostingClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, random_state=42)
 elif best_model_name == 'decision_tree':
     final_model = DecisionTreeClassifier(max_depth=10, min_samples_split=5, random_state=42)
 else:
     final_model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
 
-# Trenuj na WSZYSTKICH danych - NIE MA PODZIAŁU!
 print(f"\n📊 Trenuję na {len(X)} próbkach (100% danych)...")
 final_model.fit(X, y)
 
 print("✅ Finalny model wytrenowany pomyślnie!")
 
-# Skaler (dla zgodności)
 scaler = StandardScaler()
 scaler.fit(X)
 
-# To jest Wasz finalny model
 model = final_model
 
 # ============================================================
-# KROK 5: POMIJAMY - NIE MA PODZIAŁU WIĘC NIE MA X_test
+# KROK 4: ZAPIS MODELU
 # ============================================================
 
 print("\n" + "=" * 80)
@@ -589,13 +574,6 @@ print(f"Liczba próbek treningowych: {len(X)}")
 print(f"Liczba klas: {len(class_names)}")
 print("\nModel gotowy do generowania danych!")
 
-# Pomijamy wykresy i analizy które potrzebują X_test
-
-# ============================================================
-# KROK 6: ZAPIS MODELU DO UŻYCIA W MODELU 2
-# ============================================================
-
-# Zapisz model i skaler
 joblib.dump(model, 'model1_klasyfikator.pkl')
 joblib.dump(scaler, 'model1_scaler.pkl')
 np.save('model1_class_names.npy', class_names)
@@ -607,24 +585,15 @@ print("  - model1_scaler.pkl")
 print("  - model1_class_names.npy")
 
 # ============================================================
-# KROK 7: PRZYKŁAD UŻYCIA ZAPISANEGO MODELU
+# KROK 5: PRZYKŁAD UŻYCIA
 # ============================================================
 
 def predict_pattern(parameters, model, scaler, class_names):
-    """
-    Dla nowych parametrów przewiduj typ wzoru
-    parameters: [a, m, d1, d2]
-    """
-    # Skaluj parametry
     params_scaled = scaler.transform([parameters])
-    
-    # Przewiduj prawdopodobieństwa
     probs = model.predict_proba(params_scaled)[0]
-    
     return probs
 
-# Przykład: nowe parametry do sprawdzenia
-nowe_parametry = [2.5, 0.45, 1.5, 0.02]  # a, m, d1, d2
+nowe_parametry = [2.5, 0.45, 1.5, 0.02]
 probs = predict_pattern(nowe_parametry, model, scaler, class_names)
 
 print("\n=== PRZEWIDYWANIE DLA NOWYCH PARAMETRÓW ===")
@@ -633,9 +602,8 @@ print("Przewidywany rozkład wzorów:")
 for name, prob in zip(class_names, probs):
     print(f"  {name}: {prob:.3f}")
 
-# Wizualizacja
 plt.figure(figsize=(8, 4))
-plt.bar(class_names, probs, color=['red', 'blue', 'green', 'orange'])
+plt.bar(class_names, probs, color=['red', 'blue', 'green', 'orange', 'purple'])
 plt.title('Przewidywane prawdopodobieństwa wzorów')
 plt.ylabel('Prawdopodobieństwo')
 plt.ylim(0, 1)
