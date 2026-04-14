@@ -420,7 +420,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
     
     for smote_type in smote_types:
         print("\n" + "=" * 80)
-        print(f"📊 TESTOWANIE Z SMOTE TYP: {smote_type.upper()}")
+        print(f" TESTOWANIE Z SMOTE TYP: {smote_type.upper()}")
         print("=" * 80)
         
         for model_type in models_to_test:
@@ -478,7 +478,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
     
     # Podsumowanie wszystkich wyników
     print("\n" + "=" * 80)
-    print("🏆 PODSUMOWANIE WSZYSTKICH KOMBINACJI")
+    print("PODSUMOWANIE WSZYSTKICH KOMBINACJI")
     print("=" * 80)
     if use_cv:
         print(f"{'Model':<20} {'SMOTE Type':<15} {'Średnia':<12} {'Odchylenie'}")
@@ -495,7 +495,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
     if all_results:
         best = max(all_results, key=lambda x: x['accuracy'])
         print("\n" + "=" * 80)
-        print(f"🏆 NAJLEPSZA KOMBINACJA: {best['model'].upper()} z {best['smote_type'].upper()}")
+        print(f"NAJLEPSZA KOMBINACJA: {best['model'].upper()} z {best['smote_type'].upper()}")
         print(f"   Dokładność: {best['accuracy']:.4f} ({best['accuracy']*100:.2f}%)")
         if use_cv:
             print(f"   Odchylenie: ±{best.get('std', 0):.4f}")
@@ -535,7 +535,7 @@ best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class
 best_model_name = best_name
 
 print("\n" + "=" * 80)
-print(f"🔥 TRENOWANIE FINALNEGO MODELU: {best_model_name.upper()}")
+print(f"TRENOWANIE FINALNEGO MODELU: {best_model_name.upper()}")
 print("=" * 80)
 
 if best_model_name == 'extra_trees':
@@ -555,10 +555,10 @@ elif best_model_name == 'decision_tree':
 else:
     final_model = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
 
-print(f"\n📊 Trenuję na {len(X)} próbkach (100% danych)...")
+print(f"\n Trenuję na {len(X)} próbkach (100% danych)...")
 final_model.fit(X, y)
 
-print("✅ Finalny model wytrenowany pomyślnie!")
+print("Finalny model wytrenowany pomyślnie!")
 
 scaler = StandardScaler()
 scaler.fit(X)
@@ -570,7 +570,7 @@ model = final_model
 # ============================================================
 
 print("\n" + "=" * 80)
-print("✅ MODEL WYTRENOWANY NA WSZYSTKICH DANYCH")
+print("MODEL WYTRENOWANY NA WSZYSTKICH DANYCH")
 print("=" * 80)
 print(f"Model: {best_model_name.upper()}")
 print(f"Liczba próbek treningowych: {len(X)}")

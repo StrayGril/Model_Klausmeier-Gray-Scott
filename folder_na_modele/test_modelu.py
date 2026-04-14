@@ -54,7 +54,7 @@ for name, prob in zip(class_names, probs):
 
 # Test 2: Niskie opady 
 print("\n2. Niskie opady:")
-wzor, probs = przewiduj_wzor(0.5, 0.5, 100, 0.78)
+wzor, probs = przewiduj_wzor(0.5, 0.2, 100, 0.78)
 print(f"   a=0.5, m=0.5, d1=1.0, d2=0.1")
 print(f"   → Przewidywany wzór: {wzor}")
 print(f"   Prawdopodobieństwa:")
@@ -62,7 +62,7 @@ for name, prob in zip(class_names, probs):
     print(f"     {name}: {prob:.3f}")
 
 # Test 3: Średnie opady, 
-print("\n3. Średnie opady, niska dyfuzja biomasy (pasy):")
+print("\n3. Średnie opady, niska dyfuzja biomasy:")
 wzor, probs = przewiduj_wzor(1.5, 0.5, 3, 0.02)
 print(f"   a=1.5, m=0.5, d1=1.0, d2=0.05")
 print(f"   → Przewidywany wzór: {wzor}")

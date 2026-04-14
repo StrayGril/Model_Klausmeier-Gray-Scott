@@ -44,8 +44,8 @@ rpart.plot(tree,
 
 dev.off()
 
-cat("\n✅ Drzewo zapisane do 'drzewo_decyzyjne.pdf'\n")
-cat("📍 Ścieżka:", getwd(), "\n")
+cat("\n Drzewo zapisane do 'drzewo_decyzyjne.pdf'\n")
+cat(" Ścieżka:", getwd(), "\n")
 
 # ============================================================
 # NAJWAŻNIEJSZE PARAMETRY (WG DRZEWA)
@@ -153,6 +153,146 @@ p4 <- ggplot(dziury, aes(x = d2)) +
 (p1 + p2) / (p3 + p4) +
   plot_annotation(title = "Rozkład parametrów dla wzoru DZIURY")
 
+cat("\n======================================================================\n")
+cat("JAK UZYSKAĆ PUSTYNIA_LAS? - ANALIZA\n")
+cat("======================================================================\n")
+
+pustynia_las <- df[df$pattern_name == "pustynia_las", ]
+
+# Statystyki
+cat("\n=== STATYSTYKI OPISOWE DLA PUSTYNIA_LAS ===\n")
+print(summary(pustynia_las[, c("a", "m", "d1", "d2")]))
+
+# 5 WYKRESY W JEDNYM OKNIE - BEZ GRID.ARRANGE (używamy patchwork)
+p5 <- ggplot(pustynia_las, aes(x = a)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Parametr a (opady)", x = "a", y = "Częstość") +
+  theme_minimal()
+
+p6 <- ggplot(pustynia_las, aes(x = m)) +
+  geom_histogram(bins = 30, fill = "darkgreen", color = "white", alpha = 0.7) +
+  labs(title = "Parametr m (śmiertelność)", x = "m", y = "Częstość") +
+  theme_minimal()
+
+p7 <- ggplot(pustynia_las, aes(x = d1)) +
+  geom_histogram(bins = 30, fill = "purple", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d1 (dyfuzja wody)", x = "d1", y = "Częstość") +
+  theme_minimal()
+
+p8 <- ggplot(pustynia_las, aes(x = d2)) +
+  geom_histogram(bins = 30, fill = "orange", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d2 (dyfuzja biomasy)", x = "d2", y = "Częstość") +
+  theme_minimal()
+
+# Wyświetl wszystkie 4 wykresy w jednym oknie (2x2) za pomocą patchwork
+(p5 + p6) / (p7 + p8) +
+  plot_annotation(title = "Rozkład parametrów dla wzoru PUSTYNIA_LAS")
+
+cat("\n======================================================================\n")
+cat("JAK UZYSKAĆ PLAMY? - ANALIZA\n")
+cat("======================================================================\n")
+
+plamy <- df[df$pattern_name == "plamy", ]
+
+# Statystyki
+cat("\n=== STATYSTYKI OPISOWE DLA PLAMY ===\n")
+print(summary(plamy[, c("a", "m", "d1", "d2")]))
+
+# 5 WYKRESY W JEDNYM OKNIE - BEZ GRID.ARRANGE (używamy patchwork)
+p9 <- ggplot(plamy, aes(x = a)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Parametr a (opady)", x = "a", y = "Częstość") +
+  theme_minimal()
+
+p10 <- ggplot(plamy, aes(x = m)) +
+  geom_histogram(bins = 30, fill = "darkgreen", color = "white", alpha = 0.7) +
+  labs(title = "Parametr m (śmiertelność)", x = "m", y = "Częstość") +
+  theme_minimal()
+
+p11 <- ggplot(plamy, aes(x = d1)) +
+  geom_histogram(bins = 30, fill = "purple", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d1 (dyfuzja wody)", x = "d1", y = "Częstość") +
+  theme_minimal()
+
+p12 <- ggplot(plamy, aes(x = d2)) +
+  geom_histogram(bins = 30, fill = "orange", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d2 (dyfuzja biomasy)", x = "d2", y = "Częstość") +
+  theme_minimal()
+
+# Wyświetl wszystkie 4 wykresy w jednym oknie (2x2) za pomocą patchwork
+(p9 + p10) / (p11 + p12) +
+  plot_annotation(title = "Rozkład parametrów dla wzoru PLAMY")
+
+cat("\n======================================================================\n")
+cat("JAK UZYSKAĆ LABIRYNTY? - ANALIZA\n")
+cat("======================================================================\n")
+
+labirynty <- df[df$pattern_name == "labirynty", ]
+
+# Statystyki
+cat("\n=== STATYSTYKI OPISOWE DLA LABIRYNTY ===\n")
+print(summary(labirynty[, c("a", "m", "d1", "d2")]))
+
+# 5 WYKRESY W JEDNYM OKNIE - BEZ GRID.ARRANGE (używamy patchwork)
+p13 <- ggplot(labirynty, aes(x = a)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Parametr a (opady)", x = "a", y = "Częstość") +
+  theme_minimal()
+
+p14 <- ggplot(labirynty, aes(x = m)) +
+  geom_histogram(bins = 30, fill = "darkgreen", color = "white", alpha = 0.7) +
+  labs(title = "Parametr m (śmiertelność)", x = "m", y = "Częstość") +
+  theme_minimal()
+
+p15 <- ggplot(labirynty, aes(x = d1)) +
+  geom_histogram(bins = 30, fill = "purple", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d1 (dyfuzja wody)", x = "d1", y = "Częstość") +
+  theme_minimal()
+
+p16 <- ggplot(labirynty, aes(x = d2)) +
+  geom_histogram(bins = 30, fill = "orange", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d2 (dyfuzja biomasy)", x = "d2", y = "Częstość") +
+  theme_minimal()
+
+# Wyświetl wszystkie 4 wykresy w jednym oknie (2x2) za pomocą patchwork
+(p13 + p14) / (p15 + p16) +
+  plot_annotation(title = "Rozkład parametrów dla wzoru LABIRYNTY")
+
+cat("\n======================================================================\n")
+cat("JAK UZYSKAĆ INNE? - ANALIZA\n")
+cat("======================================================================\n")
+
+inne <- df[df$pattern_name == "inne", ]
+
+# Statystyki
+cat("\n=== STATYSTYKI OPISOWE DLA INNE ===\n")
+print(summary(inne[, c("a", "m", "d1", "d2")]))
+
+# 5 WYKRESY W JEDNYM OKNIE - BEZ GRID.ARRANGE (używamy patchwork)
+p17 <- ggplot(inne, aes(x = a)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white", alpha = 0.7) +
+  labs(title = "Parametr a (opady)", x = "a", y = "Częstość") +
+  theme_minimal()
+
+p18 <- ggplot(inne, aes(x = m)) +
+  geom_histogram(bins = 30, fill = "darkgreen", color = "white", alpha = 0.7) +
+  labs(title = "Parametr m (śmiertelność)", x = "m", y = "Częstość") +
+  theme_minimal()
+
+p19 <- ggplot(inne, aes(x = d1)) +
+  geom_histogram(bins = 30, fill = "purple", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d1 (dyfuzja wody)", x = "d1", y = "Częstość") +
+  theme_minimal()
+
+p20 <- ggplot(inne, aes(x = d2)) +
+  geom_histogram(bins = 30, fill = "orange", color = "white", alpha = 0.7) +
+  labs(title = "Parametr d2 (dyfuzja biomasy)", x = "d2", y = "Częstość") +
+  theme_minimal()
+
+# Wyświetl wszystkie 4 wykresy w jednym oknie (2x2) za pomocą patchwork
+(p17 + p18) / (p19 + p20) +
+  plot_annotation(title = "Rozkład parametrów dla wzoru INNE")
+
 # ============================================================
 # REGRESJA LOGISTYCZNA DLA KAŻDEGO WZORU
 # ============================================================
@@ -208,7 +348,7 @@ for(wzor in unique(df$pattern_name)) {
 # ============================================================
 
 write.csv(rules, "reguly_dezyzyjne.csv", row.names = FALSE)
-cat("\n✅ Reguły zapisane do 'reguly_dezyzyjne.csv'\n")
+cat("\n Reguły zapisane do 'reguly_dezyzyjne.csv'\n")
 
 # ============================================================
 # WYKRES ROZKŁADU WZORÓW (JEDEN WYKRES)
@@ -221,11 +361,4 @@ ggplot(df %>% sample_n(5000), aes(x = a, y = m, color = pattern_name)) +
        x = "a (opady)", y = "m (śmiertelność)", color = "Wzór") +
   theme_minimal()
 
-# Wykres d1 vs d2
-ggplot(df %>% sample_n(5000), aes(x = d1, y = d2, color = pattern_name)) +
-  geom_point(alpha = 0.5, size = 1) +
-  labs(title = "Rozkład wzorów - dyfuzja wody (d1) vs dyfuzja biomasy (d2)",
-       x = "d1 (dyfuzja wody)", y = "d2 (dyfuzja biomasy)", color = "Wzór") +
-  theme_minimal()
-
-cat("\n✅ Analiza zakończona!\n")
+cat("\n Analiza zakończona!\n")
