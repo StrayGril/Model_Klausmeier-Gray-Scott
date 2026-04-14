@@ -22,6 +22,8 @@ from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from collections import Counter
 import warnings
 from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as ImbPipeline
 warnings.filterwarnings('ignore')
 
 # ============================================================
@@ -95,7 +97,8 @@ def load_your_simulation_data(csv_file):
     # Mapowanie nazw (zachowując kolejność)
     pattern_mapping = {
         0: 'pustynia_las',
-        1: 'plamy', 
+        1: 'plamy',
+        2: 'pasy',
         3: 'labirynty',
         4: 'dziury', 
         5: 'inne'
@@ -453,7 +456,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
                     model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
                         X, y, class_names, 
                         model_type=model_type, 
-                        use_smote=False,
+                        use_smote=False, # TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALASA KOLEJNY RAZ
                         smote_type=smote_type,
                         verbose=True,
                         use_cv=False
@@ -510,7 +513,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
 print("=== MODEL 1: KLASYFIKATOR PARAMETRÓW ===\n")
 
 # Wczytanie danych
-X, y, class_names = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all.csv")
+X, y, class_names = load_your_simulation_data("D://Projekty//praca_licencjacka//Projekt-Formacje-roslinne-na-terenach-pustynniejacych//data//wykresy_etykiety_csv//patterns_all_FINALLY_bez_pasow.csv")
 
 print(f"Dane: {X.shape[0]} próbek, {X.shape[1]} parametry")
 print(f"Klasy: {class_names}")
@@ -523,7 +526,7 @@ print(f"Klasy: {class_names}")
 # best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names, use_cv=False)
 
 # OPCJA 2: Nowa metoda z cross-validation (BARDZIEJ WIARYGODNA!)
-best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names, use_cv=True, cv_folds=5)
+best_model, best_name, best_smote = test_all_models_with_smote_types(X, y, class_names, use_cv=True, cv_folds=10)
 
 # ============================================================
 # TRENOWANIE FINALNEGO MODELU NA WSZYSTKICH DANYCH
