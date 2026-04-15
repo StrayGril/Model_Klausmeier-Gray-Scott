@@ -78,6 +78,7 @@ def simulate_patterns(
     mean_tol: float = 1e-5,
     max_tol: float = 1e-5,
     var_tol: float = 1e-5,
+    max_value: float = 100,
     early_stop: bool =True,
     verbose: bool = False,
     var_threshold: float = 1e-4,
@@ -115,6 +116,8 @@ def simulate_patterns(
         Frequency of computing statistics.
     tol_mean, tol_max,  tol_var: float
         Tolerance for the mean, max and variance value.
+    max_value : float
+        Maximal value acceptable in a matrix.
     early_stop : bool
         Whether to stop the simulation early after stabilization.
     verbose : bool
@@ -173,9 +176,8 @@ def simulate_patterns(
         )
 
         # Stop if NaN or inf is detected
-        # zmiana na maksymalna wartosc powiedzmy 100 - nie jestem pewna ale nie powinny byc az takie duze w v
         #if (not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr))):
-        if ((not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr)))) or (np.max(v_curr) > 100):
+        if ((not np.all(np.isfinite(u_curr))) or (not np.all(np.isfinite(v_curr)))) or (np.max(v_curr) > max_value):
             nan_detected = True
 
             if last_pattern_u is not None:
