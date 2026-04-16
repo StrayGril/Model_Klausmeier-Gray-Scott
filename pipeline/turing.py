@@ -97,7 +97,7 @@ def turing_analysis(
     d1: float,
     d2: float,
     k_min: float = 0,
-    k_max: float = 5,
+    k_max: float = 25,
     n_k: int = 1000,
 ):
     """
@@ -144,12 +144,16 @@ def turing_analysis(
         "k": k_values,
         "lambda": lambda_max,
         "band": band,
+        "a": a,
+        "m": m,
+        "d1": d1,
+        "d2": d2
     }
 
 # ----------------
 # Dispersion plot
 # ----------------
-def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict):
+def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict, a: float, m: float, d1: float, d2: float,):
     """
     Plots the dispersion relation and marks the characteristic points
     of the Turing instability band.
@@ -188,7 +192,10 @@ def plot_dispersion(k_values: np.ndarray, lambda_max: np.ndarray, band: dict):
 
     plt.xlabel("k")
     plt.ylabel(r"max Re($\lambda(k)$)")
-    plt.title("Dispersion relation – Turing analysis")
+    plt.title(
+        f"Dispersion relation – Turing analysis\n"
+        f"a={a:.3g}, m={m:.3g}, d1={d1:.3g}, d2={d2:.3g}"
+    )
     plt.legend()
     plt.tight_layout()
     plt.show()
