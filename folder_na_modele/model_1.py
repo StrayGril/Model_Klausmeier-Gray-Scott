@@ -136,7 +136,7 @@ def load_your_simulation_data(csv_file):
 # KROK 3: GŁÓWNY PIPELINE MODELU 1
 # ============================================================
 
-def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=False, # TU JESZCZE ZMIENIA SIE SMOTE JAK SIE CHCE GO WYLACZYC
+def train_classification_model(X, y, class_names, model_type='random_forest', use_smote=True, # TU JESZCZE ZMIENIA SIE SMOTE JAK SIE CHCE GO WYLACZYC
                                 smote_type='standard', verbose=True, scale_data=True, 
                                 use_cv=False, cv_folds=5):
     """
@@ -434,7 +434,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
                     result = train_classification_model(
                         X, y, class_names, 
                         model_type=model_type, 
-                        use_smote=False,  # SMOTE obsłużone wewnątrz TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALA 
+                        use_smote=True,  # SMOTE obsłużone wewnątrz TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALA 
                         smote_type=smote_type,
                         verbose=True,
                         use_cv=True,
@@ -456,7 +456,7 @@ def test_all_models_with_smote_types(X, y, class_names, smote_types=['standard',
                     model, scaler, X_test, y_test, y_pred_proba = train_classification_model(
                         X, y, class_names, 
                         model_type=model_type, 
-                        use_smote=False, # TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALASA KOLEJNY RAZ
+                        use_smote=True, # TU JEST SMOTE DO ZMIANY JAK KTOS CHCE ZOBACZYC JAK BEZ SMOTEA ZADZIALASA KOLEJNY RAZ
                         smote_type=smote_type,
                         verbose=True,
                         use_cv=False
@@ -614,3 +614,68 @@ for i, v in enumerate(probs):
     plt.text(i, v + 0.02, f'{v:.2f}', ha='center')
 plt.tight_layout()
 plt.show()
+
+# ============================================================
+# MACIERZ POMYŁEK DLA NAJLEPSZEGO MODELU
+# ============================================================
+
+print("\n" + "=" * 80)
+print("MACIERZ POMYŁEK")
+print("=" * 80)
+
+# Podziel dane na train/test (75/25) do oceny modelu
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y
+)
+
+# Trenuj model na train (nie na wszystkich!)
+final_model_for_cm = ExtraTreesClassifier(n_estimators=200, max_depth=15, min_samples_split=5, random_state=42, n_jobs=-1)
+final_model_for_cm.fit(X_train, y_train)
+
+# Przewiduj na teście
+y_pred = final_model_for_cm.predict(X_test)
+
+# Oblicz macierz pomyłek
+cm = confusion_matrix(y_test, y_pred)
+
+# Wyświetl w konsoli
+print("\nMacierz pomyłek (liczebności):")
+print(cm)
+
+# Oblicz accuracy
+accuracy = np.sum(np.diag(cm)) / np.sum(cm)
+print(f"\nDokładność (accuracy): {accuracy:.4f} ({accuracy*100:.2f}%)")
+
+# Narysuj macierz pomyłek
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=class_names, 
+            yticklabels=class_names,
+            cbar=True)
+
+plt.title('Macierz pomyłek - Extra Trees', fontsize=16)
+plt.xlabel('Przewidziany wzór', fontsize=12)
+plt.ylabel('Rzeczywisty wzór', fontsize=12)
+
+# Dodaj adnotację z accuracy
+plt.text(0.5, -0.1, f'Accuracy = {accuracy*100:.1f}%', 
+         transform=plt.gca().transAxes, ha='center', fontsize=14)
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# DODATKOWO: ZAPISZ MACIERZ DO PLIKU
+# ============================================================
+
+# Zapisz jako PNG
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=class_names, 
+            yticklabels=class_names)
+plt.title('Macierz pomyłek - Extra Trees', fontsize=16)
+plt.xlabel('Przewidziany wzór', fontsize=12)
+plt.ylabel('Rzeczywisty wzór', fontsize=12)
+plt.tight_layout()
+plt.savefig('macierz_pomylek.png', dpi=300, bbox_inches='tight')
+print("\n✅ Zapisano 'macierz_pomylek.png'")

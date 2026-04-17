@@ -64,7 +64,7 @@ p1 <- ggplot(df %>% sample_n(10000), aes(x = a, y = m, color = pattern_name)) +
   theme_minimal(base_size = 14) +
   theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5))
 
-ggsave("wykres_a_vs_m.png", plot = p, width = 10, height = 8, dpi = 300)
+ggsave("wykres_a_vs_m.png", plot = p1, width = 10, height = 8, dpi = 300)
 cat("Zapisano 'wykres_a_vs_m.png'\n")
 
 p1
